@@ -3,15 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:lage/components/homepage.dart';
 import 'package:lage/components/signup/login_page.dart';
 import 'package:lage/components/tabpages/home_tab.dart';
+import 'package:lage/components/views/homescreen.dart';
 
 class Wrapper extends StatefulWidget {
   const Wrapper({super.key});
-
   @override
   State<Wrapper> createState() => _WrapperState();
 }
 
 class _WrapperState extends State<Wrapper> {
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -19,7 +21,7 @@ class _WrapperState extends State<Wrapper> {
           stream: FirebaseAuth.instance.authStateChanges(),
           builder: (context,snapshot){
             if (snapshot.hasData){
-              return HomeTabPage();
+              return HomeScreen();
             }
             else{
               return LoginPage();

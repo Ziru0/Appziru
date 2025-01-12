@@ -1,7 +1,6 @@
 import 'dart:developer';
 
 import 'package:mongo_dart/mongo_dart.dart';
-
 import 'MongoDbModel.dart';
 import 'constant.dart';
 
@@ -12,9 +11,9 @@ class MongoDatabase {
     await db.open();
     inspect(db);
     userCollection = db.collection(USER_COLLECTION);
-}
+  }
 
- static Future<String> insert(MongoDbModel data) async{
+  static Future<String> insert(MongoDbModel data) async{
     try{
       var result = await userCollection.insertOne(data.toJson());
       if(result.isSuccess){
@@ -28,6 +27,6 @@ class MongoDatabase {
       print(e.toString());
       return e.toString();
     }
- }
+  }
 
 }

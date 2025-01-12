@@ -1,3 +1,6 @@
+// To parse this JSON data, do
+//
+//     final mongoDbModerl = mongoDbModerlFromJson(jsonString);
 
 import 'dart:convert';
 
@@ -9,28 +12,28 @@ String mongoDbModelToJson(MongoDbModel data) => json.encode(data.toJson());
 
 class MongoDbModel {
   ObjectId id;
-  String fullname;
+  String firstname;
   String number;
   String address;
 
   MongoDbModel({
     required this.id,
-    required this.fullname,
+    required this.firstname,
     required this.number,
     required this.address,
   });
 
   factory MongoDbModel.fromJson(Map<String, dynamic> json) => MongoDbModel(
     id: json["_id"],
-    fullname: json["fullname"],
+    firstname: json["firstname"],
     number: json["number"],
     address: json["address"],
   );
 
   Map<String, dynamic> toJson() => {
     "_id": id,
-    "fullname": fullname,
-    "number": number,
+    "firstname": firstname,
+    "lastname": number,
     "address": address,
   };
 }

@@ -51,6 +51,7 @@ dependencies:
   geocoding: ^2.0.2
   geolocator: ^13.0.2
   mongo_dart: ^0.10.4
+  shared_preferences: ^2.1.0
 
 
 

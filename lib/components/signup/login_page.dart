@@ -1,8 +1,9 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lage/components/tabpages/home_tab.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lage/components/homepage.dart';
 import 'package:lage/components/signup/profilesetup.dart';
-import 'package:lage/components/tabpages/home_tab.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -21,14 +22,27 @@ class _LoginPageState extends State<LoginPage> {
         email: email.text.trim(),
         password: password.text.trim(),
       );
+
+      // Check if profile setup is done
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      bool isProfileSetUp = prefs.getBool('isProfileSetUp') ?? false;
+
+      if (isProfileSetUp) {
+        // Navigate to the main home page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeTabPage ()),
+        );
+      } else {
+        // Navigate to the profile setup page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Profilesetup ()),
+        );
+      }
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login Successful!')),
-      );
-
-      // Navigate to HomePage
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => ProfileSetupPage()),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -118,4 +132,3 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-

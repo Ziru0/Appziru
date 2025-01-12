@@ -26,6 +26,9 @@ class HomeTabPage extends StatefulWidget {
 }
 
 class _HomeTabPageState extends State<HomeTabPage> {
+
+  final user=FirebaseAuth.instance.currentUser;
+
   final TextEditingController destinationController = TextEditingController();
   final TextEditingController sourceController = TextEditingController();
   List<dynamic> suggestions = [];

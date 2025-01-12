@@ -1,46 +1,27 @@
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:lage/components/tabpages/home_tab.dart';
 import 'package:mongo_dart/mongo_dart.dart' as M;
-
+import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
 import '../../dbHelper/MongoDbModel.dart';
 import '../../dbHelper/monggodb.dart';
 
-void main() {
-  runApp(const ProfileSetupApp());
-}
-
-class ProfileSetupApp extends StatelessWidget {
-  const ProfileSetupApp({Key? key}) : super(key: key);
+class Profilesetup extends StatefulWidget {
+  const Profilesetup({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Profile Setup',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const ProfileSetupPage(),
-    );
-  }
+  State<Profilesetup> createState() => _ProfilesetupState();
 }
 
-class ProfileSetupPage extends StatefulWidget {
-  const ProfileSetupPage({Key? key}) : super(key: key);
-
-  @override
-  _ProfileSetupPageState createState() => _ProfileSetupPageState();
-}
-
-class _ProfileSetupPageState extends State<ProfileSetupPage> {
-  final _formKey = GlobalKey<FormState>();
-  final _fullNameController = TextEditingController();
-  final _phoneNumberController = TextEditingController();
-  final _addressController = TextEditingController();
+class _ProfilesetupState extends State<Profilesetup> {
+  var fnameController = new TextEditingController();
+  var numberController = new TextEditingController();
+  var addressController = new TextEditingController();
   File? _profileImage;
-
   final ImagePicker _picker = ImagePicker();
 
+  // Pick image from gallery
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
 
@@ -51,90 +32,134 @@ class _ProfileSetupPageState extends State<ProfileSetupPage> {
     }
   }
 
-  Future<void> _insertData(String fName , String lName , String address) async {
+  // Save profile setup and navigate to home
+  Future<void> _completeProfileSetup() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    prefs.setBool('isProfileSetUp', true); // Set the flag that profile is completed
+
+    // Insert data into MongoDB
+    _insertData(
+      fnameController.text,
+      numberController.text,
+      addressController.text,
+    );
+
+    // Navigate to Home Page
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => HomeTabPage()), // Navigate to HomePage after setup
+    );
+  }
+
+  Future<void> _insertData(String fName, String number0, String address) async {
     var _id = M.ObjectId();
-    final data = MongoDbModel(id: _id, fullname: fName, number: lName, address: address);
-    var result = await MongoDatabase.insert(data);
+    final data = MongoDbModel(
+      id: _id,
+      firstname: fName,
+      number: number0,
+      address: address,
+    );
+
+    var result = await MongoDatabase.insert(data); // Insert data into MongoDB
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Inserted ID " + _id.$oid)));
     _clearAll();
   }
 
-  void _clearAll(){
-    _fullNameController.text = "";
-    _phoneNumberController.text = "";
-    _addressController.text = "";
+  // Clear all form fields
+  void _clearAll() {
+    fnameController.text = "";
+    numberController.text = "";
+    addressController.text = "";
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile Setup')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                Center(
-                  child: Column(
-                    children: [
-                      if (_profileImage != null)
-                        CircleAvatar(
-                          backgroundImage: FileImage(_profileImage!),
-                          radius: 60,
+      appBar: AppBar(
+        title: const Text('Profile Setup'),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Profile Picture Section
+              Center(
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: _pickImage,
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundImage: _profileImage != null
+                            ? FileImage(_profileImage!)
+                            : null,
+                        child: _profileImage == null
+                            ? const Icon(
+                          Icons.person,
+                          size: 60,
+                          color: Colors.grey,
                         )
-                      else
-                        const CircleAvatar(
-                          backgroundColor: Colors.grey,
-                          radius: 60,
-                          child: Icon(Icons.person, size: 60),
-                        ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: _pickImage,
-                        child: const Text('Upload Picture'),
+                            : null,
                       ),
-                    ],
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: _pickImage,
+                      icon: const Icon(Icons.upload),
+                      label: const Text('Upload Picture'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
+              // Form Fields for First Name, Phone Number, and Address
+              TextField(
+                controller: fnameController,
+                decoration: const InputDecoration(
+                  labelText: "First Name",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: numberController,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(
+                  labelText: "Phone Number",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.phone),
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: addressController,
+                decoration: const InputDecoration(
+                  labelText: "Address",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.home),
+                ),
+              ),
+              const SizedBox(height: 30),
+              // Button to complete profile setup
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: _completeProfileSetup, // Call the function to complete setup
+                  icon: const Icon(Icons.save),
+                  label: const Text("Complete Setup"),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
+                    textStyle: const TextStyle(fontSize: 18),
                   ),
                 ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _fullNameController,
-                  decoration: const InputDecoration(labelText: 'Full Name'),
-                  validator: (value) =>
-                  value!.isEmpty
-                      ? 'Enter your full name'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _phoneNumberController,
-                  decoration: const InputDecoration(labelText: 'Phone Number'),
-                  keyboardType: TextInputType.phone,
-                  validator: (value) =>
-                  value!.isEmpty
-                      ? 'Enter your phone number'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _addressController,
-                  decoration: const InputDecoration(labelText: 'Address'),
-                  maxLines: 3,
-                  validator: (value) =>
-                  value!.isEmpty
-                      ? 'Enter your address'
-                      : null,
-                ),
-                const SizedBox(height: 24),
-                Center(
-                  child: ElevatedButton(onPressed: () {
-              _insertData(_fullNameController.text,_phoneNumberController.text,_addressController.text);
-                }, child: Text("Insert Data"))
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
