@@ -1,0 +1,30 @@
+  {
+  "project_info": {
+    "project_number": "832788567303",
+    "firebase_url": "https://omograb-driver-default-rtdb.firebaseio.com",
+    "project_id": "omograb-driver",
+    "storage_bucket": "omograb-driver.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:832788567303:android:0048ea7abe6ec775ac21a2",
+        "android_client_info": {
+          "package_name": "com.example.lage"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBIVHpt24kl3Hfx59orrRQTFyNoF_PhuE4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
