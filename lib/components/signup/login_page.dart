@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lage/components/signup/signup_page.dart';
 import 'package:lage/components/tabpages/home_tab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lage/components/homepage.dart';
@@ -22,24 +23,6 @@ class _LoginPageState extends State<LoginPage> {
         email: email.text.trim(),
         password: password.text.trim(),
       );
-
-      // Check if profile setup is done
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      bool isProfileSetUp = prefs.getBool('isProfileSetUp') ?? false;
-
-      if (isProfileSetUp) {
-        // Navigate to the main home page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeTabPage ()),
-        );
-      } else {
-        // Navigate to the profile setup page
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Profilesetup ()),
-        );
-      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Login Successful!')),
@@ -115,14 +98,29 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to a "Forgot Password" or "Sign Up" page if needed
-                  },
-                  child: const Text(
-                    "Forgot Password?",
-                    style: TextStyle(fontSize: 16, color: Colors.blue),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text("Don't have an account? "),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SignupPage(),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        "Sign Up",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

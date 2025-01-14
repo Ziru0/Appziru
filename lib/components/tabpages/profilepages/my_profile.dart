@@ -1,223 +1,114 @@
-import 'dart:io';
-import 'package:image_picker/image_picker.dart';
-import 'package:lage/components/homepage.dart';
-import 'package:lage/components/tabpages/home_tab.dart';
-import 'package:path/path.dart' as Path;
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../dbHelper/monggodb.dart';
 
-import '../../utils/app_colors.dart';
-
-
-class ProfileSettingScreen extends StatefulWidget {
-  const ProfileSettingScreen({super.key});
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({Key? key}) : super(key: key);
 
   @override
-  State<ProfileSettingScreen> createState() => _ProfileSettingScreenState();
+  State<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfileSettingScreenState extends State<ProfileSettingScreen> {
+class _ProfilePageState extends State<ProfilePage> {
+  Map<String, dynamic>? profileData;
 
-  TextEditingController nameController = TextEditingController();
-  TextEditingController homeController = TextEditingController();
-  TextEditingController businessController = TextEditingController();
-  TextEditingController shopController = TextEditingController();
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileData();
+  }
 
-  final ImagePicker _picker = ImagePicker();
-  File? selectedImage;
-  getImage(ImageSource source)async{
-    final XFile? image = await _picker.pickImage(source: source);
-    if(image!= null){
-      selectedImage = File(image.path);
-      setState(() {
-
-      });
+  // Fetch profile data from MongoDB
+  Future<void> _fetchProfileData() async {
+    try {
+      var user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String firebaseId = user.uid;
+        var data = await MongoDatabase.getOne(firebaseId); // Fetch data based on firebaseId
+        setState(() {
+          profileData = data;
+        });
+      }
+    } catch (e) {
+      print('Error fetching profile data: $e');
     }
   }
-
-  uploadImage(File image)async{
-
-    String imageUrl = '';
-    String fileName = Path.basename(image.path);
-    var reference = FirebaseStorage.instance
-        .ref()
-        .child('users/$fileName');
-    UploadTask uploadTask = reference.putFile(image);
-    TaskSnapshot taskSnapshot = await uploadTask.whenComplete(() => null);
-    await taskSnapshot.ref.getDownloadURL().then(
-          (value){
-        imageUrl = value;
-        print("Download URL: $value");
-      },
-    );
-    return imageUrl;
-  }
-
-  storeUserInfo()async{
-    String url = await uploadImage(selectedImage!);
-    String uid = FirebaseAuth.instance.currentUser!.uid;
-
-    FirebaseFirestore.instance.collection('users').doc(uid).set({
-      'image': url,
-      'name': nameController.text,
-      'home_address': homeController.text,
-      'business_address': businessController.text,
-      'shopping_address' : shopController.text
-    }).then((value){
-      nameController.clear();
-      homeController.clear();
-      businessController.clear();
-      shopController.clear();
-      setState(() {
-        isLoading = false;
-      });
-      Get.to(()=> HomeTabPage());
-    });
-  }
-
-  bool isLoading = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SingleChildScrollView(
-        child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-
-              SizedBox(
-                height: Get.height * 0.4,
-                child: Stack(
-                  children: [
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: InkWell(
-                        onTap: (){
-                          getImage(ImageSource.camera);
-                        },
-                        child: selectedImage == null? Container(
-                          width: 120,
-                          height: 120,
-                          margin: const EdgeInsets.only(bottom: 20),
-                          decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Color(0xffD6D6D6)),
-                          child: const Center(child: Icon(Icons.camera_alt_outlined,size: 40,color: Colors.white,),),
-                        ):
-                        Container(
-                          width: 120,
-                          height: 120,
-                          margin:  EdgeInsets.only(bottom: 20),
-                          decoration:  BoxDecoration(
-                              image: DecorationImage(
-                                  image: FileImage(selectedImage!),
-                                  fit: BoxFit.fill),
-                              shape: BoxShape.circle,
-                              color: Color(0xffD6D6D6)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-
-
-              const SizedBox(
-                height: 20,
-              ),
-
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 23),
-                child: Column(
-                  children: [
-                    TextFieldWidget('Name', Icons.person_outlined, nameController),
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    TextFieldWidget(
-                        'Home Address', Icons.home_outlined, homeController),
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    TextFieldWidget('Business Address', Icons.card_travel, businessController),
-                    const SizedBox(
-                      height: 10,
-                    ),
-                    TextFieldWidget('Shopping Center',
-                        Icons.shopping_cart_outlined, shopController),
-                    const SizedBox(
-                      height: 30,
-                    ),
-
-                    isLoading? Center(child: CircularProgressIndicator(),) :greenButton('Submit', (){
-                      setState(() {
-                        isLoading = true;
-                      });
-                      storeUserInfo();
-                    }),
-
-                  ],
-                ),
-              ),
-            ]
-        ),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        centerTitle: true,
       ),
-    );
-  }
-
-  TextFieldWidget(String title, IconData iconData, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(title, style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xffA7A7A7)),),
-        const SizedBox(
-          height: 6,
-        ),
-        Container(
-          width: Get.width,
-          height: 50,
-          decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    spreadRadius: 1,
-                    blurRadius: 1
+      body: profileData == null
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Profile Picture
+            Center(
+              child: CircleAvatar(
+                radius: 60,
+                backgroundImage: profileData!['profileImage'] != null
+                    ? NetworkImage(profileData!['profileImage'])
+                    : null,
+                child: profileData!['profileImage'] == null
+                    ? const Icon(
+                  Icons.person,
+                  size: 60,
+                  color: Colors.grey,
                 )
-              ],
-              borderRadius: BorderRadius.circular(8)),
-          child: TextField(
-            style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600, color: const Color(0xffA7A7A7)),
-            decoration: InputDecoration(
-              prefixIcon: Padding(
-                padding: const EdgeInsets.only(left: 10),
-                child: Icon(iconData, color: AppColors.greenColor,),
+                    : null,
               ),
-              border: InputBorder.none,
             ),
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget greenButton(String title, Function onPressed) {
-    return MaterialButton(
-      minWidth: Get.width,
-      height: 50,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
-      color: AppColors.greenColor,
-      onPressed: () => onPressed(),
-      child: Text(
-        title,
-        style: GoogleFonts.poppins(
-            fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+            const SizedBox(height: 20),
+            // Display Name
+            ListTile(
+              leading: const Icon(Icons.person),
+              title: const Text('Full Name'),
+              subtitle: Text(profileData!['fName'] ?? 'N/A'),
+            ),
+            const Divider(),
+            // Display Phone Number
+            ListTile(
+              leading: const Icon(Icons.phone),
+              title: const Text('Phone Number'),
+              subtitle: Text(profileData!['number'] ?? 'N/A'),
+            ),
+            const Divider(),
+            // Display Address
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Address'),
+              subtitle: Text(profileData!['address'] ?? 'N/A'),
+            ),
+            const Divider(),
+            // Edit Button
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const ProfilePage()), // Navigate to setup page
+                  );
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text('Edit Profile'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  textStyle: const TextStyle(fontSize: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

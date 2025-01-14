@@ -55,19 +55,6 @@ class ServicesTabPage extends StatelessWidget {
                   ),
                   const Divider(),
                   buildServiceItem(
-                    icon: Icons.fastfood,
-                    title: "Food Delivery",
-                    description: "Quick and reliable food delivery service.",
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Navigate to Food Delivery"),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(),
-                  buildServiceItem(
                     icon: Icons.shopping_bag,
                     title: "Package Delivery",
                     description: "Deliver your packages with ease.",
@@ -75,32 +62,6 @@ class ServicesTabPage extends StatelessWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text("Navigate to Package Delivery"),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(),
-                  buildServiceItem(
-                    icon: Icons.cleaning_services,
-                    title: "Cleaning Services",
-                    description: "Professional cleaning at your fingertips.",
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Navigate to Cleaning Services"),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(),
-                  buildServiceItem(
-                    icon: Icons.construction,
-                    title: "Home Maintenance",
-                    description: "Expert help for home repairs and maintenance.",
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Navigate to Home Maintenance"),
                         ),
                       );
                     },

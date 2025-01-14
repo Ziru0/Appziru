@@ -1,10 +1,9 @@
 import 'dart:io';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lage/components/tabpages/home_tab.dart';
-import 'package:mongo_dart/mongo_dart.dart' as M;
+import 'package:lage/components/views/homescreen.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
-import '../../dbHelper/MongoDbModel.dart';
 import '../../dbHelper/monggodb.dart';
 
 class Profilesetup extends StatefulWidget {
@@ -15,6 +14,7 @@ class Profilesetup extends StatefulWidget {
 }
 
 class _ProfilesetupState extends State<Profilesetup> {
+  var firebaseIdController = new TextEditingController();
   var fnameController = new TextEditingController();
   var numberController = new TextEditingController();
   var addressController = new TextEditingController();
@@ -36,32 +36,39 @@ class _ProfilesetupState extends State<Profilesetup> {
   Future<void> _completeProfileSetup() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     prefs.setBool('isProfileSetUp', true); // Set the flag that profile is completed
-
+    var user = FirebaseAuth.instance.currentUser;
+    print('user: $user');
+    String firebaseId = user!.uid;
     // Insert data into MongoDB
+    await _insertData(
+        firebaseId,
+        fnameController.text,
+        numberController.text,
+        addressController.text
+    );
+
     _insertData(
-      fnameController.text,
-      numberController.text,
-      addressController.text,
+
+        firebaseIdController.text,
+        fnameController.text,
+        numberController.text,
+        addressController.text
     );
 
     // Navigate to Home Page
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (context) => HomeTabPage()), // Navigate to HomePage after setup
+      MaterialPageRoute(builder: (context) => HomeScreen()), // Navigate to HomePage after setup
     );
   }
 
-  Future<void> _insertData(String fName, String number0, String address) async {
-    var _id = M.ObjectId();
-    final data = MongoDbModel(
-      id: _id,
-      firstname: fName,
-      number: number0,
-      address: address,
-    );
+  Future<void> _insertData(String firebaseId, String fName, String number0, String address) async {
+    Map<String, dynamic> updatedData = {
+      "someOtherField": "value", // Add any other fields to update if needed
+    };
 
-    var result = await MongoDatabase.insert(data); // Insert data into MongoDB
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Inserted ID " + _id.$oid)));
+    var result = await MongoDatabase.updateOne(firebaseId, fName, address, number0, updatedData); // Insert data into MongoDB
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("updated profile from: $firebaseId")));
     _clearAll();
   }
 
@@ -119,7 +126,7 @@ class _ProfilesetupState extends State<Profilesetup> {
               TextField(
                 controller: fnameController,
                 decoration: const InputDecoration(
-                  labelText: "First Name",
+                  labelText: "Full Name",
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.person),
                 ),

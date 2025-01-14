@@ -1,7 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/homepage.dart';
+import 'package:lage/components/signup/profilesetup.dart';
 import 'package:lage/components/tabpages/home_tab.dart';
+import 'package:mongo_dart/mongo_dart.dart' as M;
+
+import '../../dbHelper/monggodb.dart';
+import '../../dbHelper/MongoDBModeluser.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -20,15 +25,30 @@ class SignupPageState extends State<SignupPage> {
   signUp() async {
     if (_formKey.currentState!.validate()) {
       try {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        var backFire = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email.text.trim(),
           password: password.text.trim(),
         );
+        // Log the entire backFire object
+        print('backFire: $backFire'); // This will log the userCredential object
+        /**
+         * @Todo Start
+         */
+        var _id = M.ObjectId();
+        final data = MongoDbModelUser(
+          id: _id,
+          email: email.text.trim(),
+            firebaseId: backFire.user?.uid,
+        );
+        var result = await MongoDatabase.insertUser(data);
+        /**
+         * @Todo End
+         */
 
         // Navigate to the HomePage after successful registration
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => HomeTabPage()),
+          MaterialPageRoute(builder: (context) => Profilesetup()),
         );
       } on FirebaseAuthException catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(

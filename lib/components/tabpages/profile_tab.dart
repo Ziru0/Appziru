@@ -47,7 +47,7 @@ class ProfileTabPage extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ProfileSettingScreen(), // Replace with your target page
+                              builder: (context) => ProfilePage(), // Replace with your target page
                             ),
                           );
                         },
