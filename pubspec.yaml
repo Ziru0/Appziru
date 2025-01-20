@@ -52,6 +52,9 @@ dependencies:
   geolocator: ^13.0.2
   mongo_dart: ^0.10.4
   shared_preferences: ^2.1.0
+  google_maps_flutter: ^2.10.0
+  flutter_dotenv: ^5.0.2
+  open_route_service: ^1.2.6
 
 
 

@@ -68,22 +68,37 @@ class _ProfilePageState extends State<ProfilePage> {
             // Display Name
             ListTile(
               leading: const Icon(Icons.person),
-              title: const Text('Full Name'),
-              subtitle: Text(profileData!['fName'] ?? 'N/A'),
+              title: const Text('Full Name', ),
+              subtitle: Text(profileData!['fullname'] ?? 'N/A',
+                style: const TextStyle(fontSize: 20),),
+
             ),
             const Divider(),
             // Display Phone Number
             ListTile(
               leading: const Icon(Icons.phone),
               title: const Text('Phone Number'),
-              subtitle: Text(profileData!['number'] ?? 'N/A'),
+              subtitle: Text(profileData!['number'] ?? 'N/A',
+                style: const TextStyle(fontSize: 20),),
+
             ),
             const Divider(),
             // Display Address
             ListTile(
               leading: const Icon(Icons.home),
               title: const Text('Address'),
-              subtitle: Text(profileData!['address'] ?? 'N/A'),
+              subtitle: Text(profileData!['address'] ?? 'N/A',
+                style: const TextStyle(fontSize: 20),),
+
+            ),
+            const Divider(),
+
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Address'),
+              subtitle: Text(profileData!['address'] ?? 'N/A',
+                style: const TextStyle(fontSize: 20),),
+
             ),
             const Divider(),
             // Edit Button

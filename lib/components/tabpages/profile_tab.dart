@@ -1,14 +1,44 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
 import 'package:lage/components/tabpages/profilepages/notifications.dart';
 
+import '../../dbHelper/monggodb.dart';
 
-class ProfileTabPage extends StatelessWidget {
+class ProfileTabPage extends StatefulWidget {
   const ProfileTabPage({super.key});
+
+  @override
+  State<ProfileTabPage> createState() => _ProfileTabPageState();
+}
+
+class _ProfileTabPageState extends State<ProfileTabPage> {
+  Map<String, dynamic>? profileData;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileData();
+  }
+
+  // Fetch profile data from MongoDB
+  Future<void> _fetchProfileData() async {
+    try {
+      var user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String firebaseId = user.uid;
+        var data = await MongoDatabase.getOne(firebaseId); // Fetch data based on firebaseId
+        setState(() {
+          profileData = data;
+        });
+      }
+    } catch (e) {
+      print('Error fetching profile data: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,8 +52,7 @@ class ProfileTabPage extends StatelessWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        backgroundColor: Color(0xFF181C14),
-
+        backgroundColor: const Color(0xFF181C14),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -34,7 +63,7 @@ class ProfileTabPage extends StatelessWidget {
               // Profile Section
               Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 40,
                     backgroundImage: AssetImage('assets/omoda1.png'),
                   ),
@@ -47,26 +76,24 @@ class ProfileTabPage extends StatelessWidget {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => ProfilePage(), // Replace with your target page
+                              builder: (context) => const ProfilePage(),
                             ),
                           );
                         },
                         child: Text(
-                          "Harold Andrei Ruiz", // Replace with actual user name
+                          profileData?['fullname'] ?? 'N/A', // Dynamic User Full Name
                           style: GoogleFonts.poppins(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
-
                       const SizedBox(height: 4),
                       Text(
-                        "qwe123@example.com", // Replace with actual email
+                        profileData?['email'] ?? 'N/A', // Dynamic User Email
                         style: GoogleFonts.poppins(
                           fontSize: 14,
-                          color: Color(0xFF3C3D37)
-                          ,
+                          color: const Color(0xFF3C3D37),
                         ),
                       ),
                     ],
@@ -74,7 +101,6 @@ class ProfileTabPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 20),
-
               // Account Options
               Text(
                 "Account Settings",
@@ -113,8 +139,6 @@ class ProfileTabPage extends StatelessWidget {
                 },
               ),
               const Divider(),
-
-              // App Preferences
               Text(
                 "App Preferences",
                 style: GoogleFonts.poppins(
@@ -143,8 +167,6 @@ class ProfileTabPage extends StatelessWidget {
                 onTap: () => Get.to(() => const NotificationPage()),
               ),
               const Divider(),
-
-              // Other Options
               Text(
                 "Others",
                 style: GoogleFonts.poppins(
@@ -186,7 +208,9 @@ class ProfileTabPage extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: Color(0xFF3C3D37)
+      leading: Icon(
+        icon,
+        color: const Color(0xFF3C3D37),
       ),
       title: Text(
         title,

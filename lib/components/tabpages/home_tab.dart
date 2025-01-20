@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:latlong2/latlong.dart';
+import '../../dbHelper/monggodb.dart';
 import '../utils/app_colors.dart';
 import '../views/invites.dart';
 import '../views/payment.dart';
@@ -26,6 +27,30 @@ class HomeTabPage extends StatefulWidget {
 }
 
 class _HomeTabPageState extends State<HomeTabPage> {
+
+  Map<String, dynamic>? profileData;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfileData();
+  }
+
+  // Fetch profile data from MongoDB
+  Future<void> _fetchProfileData() async {
+    try {
+      var user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        String firebaseId = user.uid;
+        var data = await MongoDatabase.getOne(firebaseId); // Fetch data based on firebaseId
+        setState(() {
+          profileData = data;
+        });
+      }
+    } catch (e) {
+      print('Error fetching profile data: $e');
+    }
+  }
 
   final user=FirebaseAuth.instance.currentUser;
 
@@ -80,7 +105,10 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   ],
                 ),
               // These widgets should be on top of the map, hence in a stack
-              buildProfileTile(name: 'Harold Ruiz', imageUrl: null),
+              buildProfileTile(
+                name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
+                imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
+              ),
               buildTextField(),
               buildBottomSheet(),
               buildTextFieldForSource(),
@@ -337,30 +365,36 @@ class _HomeTabPageState extends State<HomeTabPage> {
         padding: EdgeInsets.zero,
         children:
         [
-
           // Drawer Header
-
           UserAccountsDrawerHeader(
             currentAccountPicture: Container(
               width: 60,
               height: 60,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                image: userImage == null
+                image: profileData?['profilePicture'] == null // Check if profile picture is null
                     ? const DecorationImage(
-                  image: AssetImage('assets/person.png'),
+                  image: AssetImage('assets/person.png'), // Default image
                   fit: BoxFit.fill,
                 )
                     : DecorationImage(
-                  image: NetworkImage(userImage),
+                  image: NetworkImage(profileData!['profilePicture']), // Dynamic profile picture
                   fit: BoxFit.fill,
                 ),
               ),
             ),
-            accountName: Text(userName ?? "Harold Andrei Ruiz"),
-            accountEmail: Text(userImage ?? "haroldandrei@gmail.com"),
-            decoration: BoxDecoration(
-              color: Color(0xFF181C14),
+            accountName: Text(
+              profileData?['fullname'] ?? "N/A", // Dynamic user full name or fallback
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            accountEmail: Text(
+              profileData?['email'] ?? "N/A", // Dynamic user email or fallback
+              style: GoogleFonts.poppins(),
+            ),
+            decoration: const BoxDecoration(
+              color: Color(0xFF181C14), // Drawer header background color
             ),
           ),
 

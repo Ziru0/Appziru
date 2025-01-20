@@ -31,7 +31,7 @@ class MongoDbModelUser {
     id: json["_id"],
     email: json["email"],
     firebaseId: json["firebaseId"],
-    fullname: json["firstname"],
+    fullname: json["fullname"],
     number: json["number"],
     address: json["address"],
   );
