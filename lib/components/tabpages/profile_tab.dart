@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lage/components/signup/profilesetup.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
 import 'package:lage/components/tabpages/profilepages/notifications.dart';
@@ -113,9 +114,7 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
               buildAccountOption(
                 title: "Edit Profile",
                 icon: Icons.edit,
-                onTap: () {
-                  // Navigate to Edit Profile Page
-                },
+                onTap: () => Get.to(() => const Profilesetup()),
               ),
               buildAccountOption(
                 title: "Change Password",

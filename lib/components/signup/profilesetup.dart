@@ -3,8 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lage/components/views/homescreen.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import SharedPreferences
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/monggodb.dart';
+import '../drivers/driver_home.dart';
 
 class Profilesetup extends StatefulWidget {
   const Profilesetup({super.key});
@@ -14,10 +15,11 @@ class Profilesetup extends StatefulWidget {
 }
 
 class _ProfilesetupState extends State<Profilesetup> {
-  var firebaseIdController = new TextEditingController();
-  var fnameController = new TextEditingController();
-  var numberController = new TextEditingController();
-  var addressController = new TextEditingController();
+  var fnameController = TextEditingController();
+  var numberController = TextEditingController();
+  var addressController = TextEditingController();
+  String? selectedRole; // Variable to store the selected role
+  final List<String> roles = ['Driver', 'Passenger']; // Available roles
   File? _profileImage;
   final ImagePicker _picker = ImagePicker();
 
@@ -32,43 +34,58 @@ class _ProfilesetupState extends State<Profilesetup> {
     }
   }
 
-  // Save profile setup and navigate to home
+  // Save profile setup and navigate to the appropriate page
   Future<void> _completeProfileSetup() async {
+    if (selectedRole == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please select a role.")),
+      );
+      return;
+    }
+
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setBool('isProfileSetUp', true); // Set the flag that profile is completed
+    prefs.setBool('isProfileSetUp', true);
     var user = FirebaseAuth.instance.currentUser;
-    print('user: $user');
     String firebaseId = user!.uid;
+
     // Insert data into MongoDB
     await _insertData(
-        firebaseId,
-        fnameController.text,
-        numberController.text,
-        addressController.text
+      firebaseId,
+      fnameController.text,
+      numberController.text,
+      addressController.text,
+      selectedRole!,
     );
 
-    _insertData(
-
-        firebaseIdController.text,
-        fnameController.text,
-        numberController.text,
-        addressController.text
-    );
-
-    // Navigate to Home Page
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => HomeScreen()), // Navigate to HomePage after setup
-    );
+    // Navigate to a specific page based on the role
+    if (selectedRole == "Driver") {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DriverHomePage(), // Navigate to Driver Setup Page
+        ),
+      );
+    } else if (selectedRole == "Passenger") {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const HomeScreen(),
+        ),
+      );
+    }
   }
 
-  Future<void> _insertData(String firebaseId, String fName, String number0, String address) async {
+
+  Future<void> _insertData(
+      String firebaseId, String fName, String number, String address, String role) async {
     Map<String, dynamic> updatedData = {
-      "someOtherField": "value", // Add any other fields to update if needed
+      "role": role, // Include the role in the data
     };
 
-    var result = await MongoDatabase.updateOne(firebaseId, fName, address, number0, updatedData); // Insert data into MongoDB
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("updated profile from: $firebaseId")));
+    var result = await MongoDatabase.updateOne(
+        firebaseId, fName, address, number, updatedData);
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Updated profile for: $firebaseId")));
     _clearAll();
   }
 
@@ -77,6 +94,7 @@ class _ProfilesetupState extends State<Profilesetup> {
     fnameController.text = "";
     numberController.text = "";
     addressController.text = "";
+    selectedRole = null;
   }
 
   @override
@@ -122,7 +140,7 @@ class _ProfilesetupState extends State<Profilesetup> {
                 ),
               ),
               const SizedBox(height: 30),
-              // Form Fields for First Name, Phone Number, and Address
+              // Form Fields for Full Name, Phone Number, and Address
               TextField(
                 controller: fnameController,
                 decoration: const InputDecoration(
@@ -150,11 +168,32 @@ class _ProfilesetupState extends State<Profilesetup> {
                   prefixIcon: Icon(Icons.home),
                 ),
               ),
+              const SizedBox(height: 20),
+              // Role Selection Dropdown
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                items: roles.map((role) {
+                  return DropdownMenuItem(
+                    value: role,
+                    child: Text(role),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedRole = value;
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: "Role",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_outline),
+                ),
+              ),
               const SizedBox(height: 30),
               // Button to complete profile setup
               Center(
                 child: ElevatedButton.icon(
-                  onPressed: _completeProfileSetup, // Call the function to complete setup
+                  onPressed: _completeProfileSetup,
                   icon: const Icon(Icons.save),
                   label: const Text("Complete Setup"),
                   style: ElevatedButton.styleFrom(

@@ -1,6 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:lage/components/homepage.dart';
+import 'package:lage/components/homepagetesting.dart';
 import 'package:lage/components/signup/profilesetup.dart';
 import 'package:lage/components/tabpages/home_tab.dart';
 import 'package:mongo_dart/mongo_dart.dart' as M;

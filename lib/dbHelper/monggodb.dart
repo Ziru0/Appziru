@@ -31,14 +31,22 @@ class MongoDatabase {
     }
   }
 
-
-
-  static Future<String> updateOne(String firebaseId,String fullname,String address,String number, Map<Object, dynamic> updatedData) async {
+  static Future<String> updateOne(
+      String firebaseId,
+      String fullname,
+      String address,
+      String number,
+      Map<Object, dynamic> updatedData) async {
     try {
       var modifier = ModifierBuilder()
         ..set('fullname', fullname)
         ..set('address', address)
         ..set('number', number);
+
+      // Add role if it's in the updatedData map
+      if (updatedData.containsKey('role')) {
+        modifier.set('role', updatedData['role']);
+      }
 
       // Apply additional fields from updatedData
       updatedData.forEach((key, value) {
@@ -46,7 +54,7 @@ class MongoDatabase {
       });
 
       var result = await userCollection.updateOne(
-          // where.eq(ObjectId.parse(firebaseId)), // Match the document by ObjectId
+        // where.eq(ObjectId.parse(firebaseId)), // Match the document by ObjectId
           where.eq('firebaseId', firebaseId),
           modifier
       );

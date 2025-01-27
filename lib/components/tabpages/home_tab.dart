@@ -1,40 +1,29 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
-
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:geocoding/geocoding.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lage/components/views/invites.dart';
+import 'package:lage/components/views/payment.dart';
+import 'package:lage/components/views/promo_codes.dart';
+import 'package:lage/components/views/ride_history.dart';
+import 'package:lage/components/views/settings.dart';
+import 'package:lage/components/views/support.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:http/http.dart' as http;
 import '../../dbHelper/monggodb.dart';
-import '../utils/app_colors.dart';
-import '../views/invites.dart';
-import '../views/payment.dart';
-import '../views/promo_codes.dart';
-import '../views/ride_history.dart';
-import '../views/settings.dart';
-import '../views/support.dart';
-
 
 class HomeTabPage extends StatefulWidget {
   const HomeTabPage({super.key});
-
 
   @override
   State<HomeTabPage> createState() => _HomeTabPageState();
 }
 
 class _HomeTabPageState extends State<HomeTabPage> {
-
   Map<String, dynamic>? profileData;
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchProfileData();
-  }
+  final RxBool isLoading = true.obs;
 
   // Fetch profile data from MongoDB
   Future<void> _fetchProfileData() async {
@@ -51,15 +40,109 @@ class _HomeTabPageState extends State<HomeTabPage> {
       print('Error fetching profile data: $e');
     }
   }
-
   final user=FirebaseAuth.instance.currentUser;
 
-  final TextEditingController destinationController = TextEditingController();
-  final TextEditingController sourceController = TextEditingController();
-  List<dynamic> suggestions = [];
 
-  List<LatLng> routePoints = [];
-  final LatLng startPoint = LatLng(8.56469, 123.3336);
+  late MapController mapController;
+  TextEditingController destinationController = TextEditingController();
+  TextEditingController sourceController = TextEditingController();
+
+  List<String> suggestionsList = [];
+  List<String> suggestionsList1 = [];
+
+  LatLng? startCoordinates;
+  LatLng? endCoordinates;
+
+  List<LatLng> polylineCoordinates = [];
+
+  @override
+  void initState() {
+    super.initState();
+    mapController = MapController();
+    _fetchProfileData();
+  }
+
+  Future<List<String>> fetchPlaceSuggestions(String query) async {
+    final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
+    final url =
+        'https://api.openrouteservice.org/geocode/search?text=$query&api_key=$apiKey&boundary.country=PH&boundary.rect.min_lon=123.2915&boundary.rect.min_lat=8.5254&boundary.rect.max_lon=123.3605&boundary.rect.max_lat=8.6311';
+
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      List<String> suggestions = [];
+      for (var feature in data['features']) {
+        suggestions.add(feature['properties']['label']);
+      }
+      return suggestions;
+    } else {
+      throw Exception('Failed to load suggestions');
+    }
+  }
+
+  Future<LatLng?> fetchCoordinates(String query) async {
+    final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
+    final url =
+        'https://api.openrouteservice.org/geocode/search?text=$query&api_key=$apiKey';
+
+    final response = await http.get(Uri.parse(url));
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['features'] != null && data['features'].isNotEmpty) {
+        final coordinates = data['features'][0]['geometry']['coordinates'];
+        return LatLng(coordinates[1], coordinates[0]);
+      }
+    }
+    return null;
+  }
+
+  Future<void> fetchRoute() async {
+    if (startCoordinates == null || endCoordinates == null) {
+      print('Start or end coordinates are null!');
+      return;
+    }
+
+    final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
+    final url = 'https://api.openrouteservice.org/v2/directions/foot-walking';
+
+    final body = {
+      "coordinates": [
+        [startCoordinates!.longitude, startCoordinates!.latitude],
+        [endCoordinates!.longitude, endCoordinates!.latitude]
+      ]
+    };
+
+    try {
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Authorization': apiKey,
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+
+        // Extract route details
+        final distance =
+            data['routes'][0]['summary']['distance'] / 1000; // Convert to km
+        final duration =
+            data['routes'][0]['summary']['duration'] / 60; // Convert to minutes
+        final cost = distance * 10; // Example calculation for cost
+
+        // Call the method with the calculated values
+        buildRideConfirmationSheet(distance, duration, cost);
+      } else {
+        print("Failed to fetch route: ${response.body}");
+      }
+    } catch (e) {
+      print("Error fetching route: $e");
+    }
+  }
 
 
   @override
@@ -82,43 +165,33 @@ class _HomeTabPageState extends State<HomeTabPage> {
           ),
         ),
       ),
-      body: FlutterMap(
-        options: MapOptions(
-          initialCenter: LatLng(8.56469, 123.3336),
-          initialZoom: 14,
-        ),
+      body: Stack(
         children: [
-          Stack(
+          FlutterMap(
+            mapController: mapController,
+            options: MapOptions(
+              initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
+              initialZoom: 15,
+            ),
             children: [
               TileLayer(
-                urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 subdomains: ['a', 'b', 'c'],
               ),
-              if (routePoints.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: routePoints,
-                      color: Colors.blue,
-                      strokeWidth: 4.0,
-                    ),
-                  ],
-                ),
-              // These widgets should be on top of the map, hence in a stack
-              buildProfileTile(
-                name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
-                imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
-              ),
-              buildTextField(),
-              buildBottomSheet(),
-              buildTextFieldForSource(),
             ],
           ),
+          buildProfileTile(
+            name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
+            imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
+          ),
+          buildTextField(),
+          buildTextFieldForSource(), // Ensure this is displayed correctly
+          buildCurrentLocationIcon(),
+          buildBottomSheet(),
         ],
       ),
     );
   }
-
 
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
     return Positioned(
@@ -199,129 +272,160 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Widget buildTextField() {
     return Positioned(
-      top: 170,
+      top: 280,
       left: 20,
       right: 20,
-      child: Container(
-        width: Get.width,
-        height: 50,
-        padding: const EdgeInsets.only(left: 15),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              spreadRadius: 4,
-              blurRadius: 10,
-            ),
-          ],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: TextField(
-          controller: destinationController,
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+      child: SingleChildScrollView(
+        child: Container(
+          width: MediaQuery.of(context).size.width,
+          padding: EdgeInsets.symmetric(horizontal: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha((0.1 * 255).toInt()),
+                spreadRadius: 2,
+                blurRadius: 8,
+              ),
+            ],
+            borderRadius: BorderRadius.circular(8),
           ),
-          decoration: InputDecoration(
-            hintText: 'Search for a destination',
-            hintStyle: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            suffixIcon:
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () async {
-                if (destinationController.text.isNotEmpty) {
-                  await fetchAndSetRoute(destinationController.text);
-                }
-              },
-            ),
-            border: InputBorder.none,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: destinationController,
+                onChanged: (value) async {
+                  if (value.isNotEmpty) {
+                    suggestionsList = await fetchPlaceSuggestions(value);
+                    setState(() {});
+                  } else {
+                    setState(() {
+                      suggestionsList = [];
+                    });
+                  }
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search for a destination',
+                  border: InputBorder.none,
+                ),
+              ),
+              if (suggestionsList.isNotEmpty)
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: suggestionsList.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(suggestionsList[index]),
+                        onTap: () async {
+                          destinationController.text = suggestionsList[index];
+                          startCoordinates =
+                          await fetchCoordinates(suggestionsList[index]);
+                          suggestionsList = [];
+                          setState(() {});
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Future<void> searchAndShowRoute(String destination) async {
-    try {
-      // Geocode the destination to get latitude and longitude
-      List<Location> locations = await locationFromAddress(destination);
+  Set<Marker> markers = {};
 
-      if (locations.isNotEmpty) {
-        double destinationLat = locations.first.latitude;
-        double destinationLng = locations.first.longitude;
-
-        // Call your route fetching method here (e.g., using a routing API)
-        List<LatLng> route = await fetchRouteToDestination(destinationLat, destinationLng);
-
-        // Update the map with the new polyline
-        setState(() {
-          routePoints = route;
-        });
-      } else {
-        print('No location found for $destination');
-      }
-    } catch (e) {
-      print('Error fetching route: $e');
-    }
-  }
-
-  Future<List<LatLng>> fetchRouteToDestination(double destinationLat, double destinationLng) async {
-    // Implement your routing logic here to fetch the route.
-    // For example, you can call an API like OpenRouteService or Google Directions API.
-
-    // Dummy route for now:
-    return [
-      LatLng(8.5896, 123.3336),  // Start point (your current location)
-      LatLng(destinationLat, destinationLng), // Destination
-    ];
-  }
 
   Widget buildTextFieldForSource() {
     return Positioned(
-      top: 230,
+      top: 340,
       left: 20,
       right: 20,
-      child: Container(
-        width: Get.width,
-        height: 50,
-        padding: EdgeInsets.only(left: 15),
-        decoration: BoxDecoration(
+      child: SingleChildScrollView(
+        child: Container(
+          width: MediaQuery.of(context).size.width,
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          decoration: BoxDecoration(
             color: Colors.white,
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  spreadRadius: 4,
-                  blurRadius: 10)
-            ],
-            borderRadius: BorderRadius.circular(8)),
-        child: TextFormField(
-          controller: sourceController,
-          readOnly: true,
-          onTap: () async {
-            buildSourceSheet(sourceController: sourceController);
-          },
-
-          style: GoogleFonts.poppins(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-          decoration: InputDecoration(
-            hintText: 'From:',
-            hintStyle: GoogleFonts.poppins(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            suffixIcon: Padding(
-              padding: const EdgeInsets.only(left: 10),
-              child: Icon(
-                Icons.search,
+                color: Colors.black.withAlpha((0.1 * 255).toInt()),
+                spreadRadius: 2,
+                blurRadius: 8,
               ),
-            ),
-            border: InputBorder.none,
+            ],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            children: [
+              TextFormField(
+                controller: sourceController,
+                onChanged: (value) async {
+                  if (value.isNotEmpty) {
+                    suggestionsList1 = await fetchPlaceSuggestions(value);
+                    setState(() {});
+                  } else {
+                    setState(() {
+                      suggestionsList1 = [];
+                    });
+                  }
+                },
+                decoration: const InputDecoration(
+                  hintText: 'From',
+                  border: InputBorder.none,
+                ),
+              ),
+              if (suggestionsList1.isNotEmpty)
+                SizedBox(
+                  height: 200,
+                  child: ListView.builder(
+                    itemCount: suggestionsList1.length,
+                    itemBuilder: (context, index) {
+                      return ListTile(
+                        title: Text(suggestionsList1[index]),
+                        onTap: () async {
+                          sourceController.text = suggestionsList1[index];
+                          endCoordinates =
+                          await fetchCoordinates(suggestionsList1[index]);
+                          suggestionsList1 = [];
+                          setState(() {});
+                          await fetchRoute();
+
+                          // Debug log
+                          print("Showing Ride Confirmation Sheet");
+
+                          // Ensure display
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                          });
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double distance = 0.0;
+  double duration = 0.0;
+  double cost = 0.0;
+
+  Widget buildCurrentLocationIcon() {
+    return Align(
+      alignment: Alignment.bottomRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 30, right: 8),
+        child: CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.black,
+          child: Icon(
+            Icons.my_location,
+            color: Colors.white,
           ),
         ),
       ),
@@ -335,19 +439,15 @@ class _HomeTabPageState extends State<HomeTabPage> {
         width: Get.width * 0.8,
         height: 25,
         decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              spreadRadius: 4,
-              blurRadius: 10,
-            ),
-          ],
-          borderRadius: const BorderRadius.only(
-            topRight: Radius.circular(12),
-            topLeft: Radius.circular(12),
-          ),
-        ),
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withAlpha((0.1 * 255).toInt()),
+                  spreadRadius: 4,
+                  blurRadius: 10)
+            ],
+            borderRadius: BorderRadius.only(
+                topRight: Radius.circular(12), topLeft: Radius.circular(12))),
         child: Center(
           child: Container(
             width: Get.width * 0.6,
@@ -378,7 +478,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   fit: BoxFit.fill,
                 )
                     : DecorationImage(
-                  image: NetworkImage(profileData!['profilePicture']), // Dynamic profile picture
+                  image: NetworkImage(profileData?['profilePicture']), // Dynamic profile picture
                   fit: BoxFit.fill,
                 ),
               ),
@@ -448,308 +548,184 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-
-  void buildSourceSheet({
-    required TextEditingController sourceController,
-  }) {
-
-    Get.bottomSheet(
-        Container(
-          width: Get.width,
-          height: Get.height * 0.5,
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(8),
-              topRight: Radius.circular(8),
-            ),
-            color: Colors.white,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              const Text(
-                "Select Your Location",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Home Address",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              InkWell(
-                onTap: () {
-                  Get.back(); // Close the bottom sheet
-                  sourceController.text = "Home Address"; // Set the selected value
-                },
-                child: _buildAddressContainer("Home Address"),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Current Address",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              InkWell(
-                onTap: () {
-                  Get.back();
-                  sourceController.text = "Current Address";
-                },
-                child: _buildAddressContainer("Business Address"),
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                "Search for Address",
-                style: TextStyle(
-                  color: Colors.black,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Center(
-                child: Column(
-                  children: [
-                    TextButton(
-                      onPressed: () {
-
-                        // Define the action to perform when the button is clicked
-                        print("Search button pressed");
-                      },
-                      child: const Text(
-                        "Search for Address",
-                        style: TextStyle(
-
-                          color: Colors.black,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: suggestions.length,
-                  itemBuilder: (context, index) {
-                    final suggestion = suggestions[index]['properties']['label'];
-                    final coordinates = suggestions[index]['geometry']['coordinates'];
-                    return ListTile(
-                      title: Text(suggestion),
-                      onTap: () {
-                        sourceController.text = suggestion;
-                        Get.back(); // Close the bottom sheet
-                        // Use coordinates as needed, for example:
-                        fetchAndSetRoute(LatLng(coordinates[1], coordinates[0]) as String);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-    );
-  }
-
-  Future<void> fetchPlaceSuggestions(String query) async {
-    const String apiKey = '5b3ce3597851110001cf624806cb530231bd49338fd6a9a3cd129e38'; // Replace with your API key
-    final url =
-        'https://api.openrouteservice.org/geocode/autocomplete?api_key=$apiKey&text=$query';
-
-    try {
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        setState(() {
-          suggestions = data['features']; // Extract suggestions
-        });
-      } else {
-        print("Failed to fetch suggestions: ${response.statusCode}");
-      }
-    } catch (e) {
-      print("Error fetching suggestions: $e");
-    }
-  }
-
-
-  Widget _buildAddressContainer(String label) {
-    return Container(
+  buildRideConfirmationSheet(double distance, double duration, double cost) {
+    Get.bottomSheet(Container(
       width: Get.width,
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: Get.height * 0.5,
+      padding: EdgeInsets.only(left: 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            spreadRadius: 4,
-            blurRadius: 10,
-          ),
-        ],
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(12),
+          topLeft: Radius.circular(12),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-            textAlign: TextAlign.start,
+          const SizedBox(
+            height: 10,
           ),
+          Center(
+            child: Container(
+              width: Get.width * 0.2,
+              height: 8,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: Colors.grey,
+              ),
+            ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          textWidget(
+            text: 'Route Summary:',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          const SizedBox(
+            height: 10,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                textWidget(
+                  text: 'Distance: ${distance.toStringAsFixed(2)} km',
+                  fontSize: 16,
+                ),
+                textWidget(
+                  text: 'Duration: ${duration.toStringAsFixed(2)} minutes',
+                  fontSize: 16,
+                ),
+                textWidget(
+                  text: 'Estimated Cost: ₱${cost.toStringAsFixed(2)}',
+                  fontSize: 16,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          textWidget(
+            text: 'Select an option:',
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+          const SizedBox(
+            height: 20,
+          ),
+          buildDriversList(),
+          const SizedBox(
+            height: 20,
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Divider(),
+          ),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                MaterialButton(
+                  onPressed: () {
+                    // Confirm button action
+                  },
+                  child: textWidget(
+                    text: 'Confirm',
+                    color: Colors.white,
+                  ),
+                  color: Colors.blue, // Set button color
+                  shape: StadiumBorder(),
+                )
+              ],
+            ),
+          )
+        ],
+      ),
+    ));
+  }
+
+  int selectedRide = 0;
+
+  buildDriversList() {
+    return Container(
+      height: 90,
+      width: Get.width,
+      child: StatefulBuilder(builder: (context, set) {
+        return ListView.builder(
+          itemBuilder: (ctx, i) {
+            return InkWell(
+              onTap: () {
+                set(() {
+                  selectedRide = i;
+                });
+              },
+              child: buildDriverCard(selectedRide == i),
+            );
+          },
+          itemCount: 3,
+          scrollDirection: Axis.horizontal,
+        );
+      }),
+    );
+  }
+
+  buildDriverCard(bool selected) {
+    return Container(
+      margin: EdgeInsets.only(right: 8, left: 8, top: 4, bottom: 4),
+      height: 85,
+      width: 165,
+      decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+                color: selected
+                    ? Color(0xff2DBB54).withOpacity(0.2)
+                    : Colors.grey.withOpacity(0.2),
+                offset: Offset(0, 5),
+                blurRadius: 5,
+                spreadRadius: 1)
+          ],
+          borderRadius: BorderRadius.circular(12),
+          color: selected ? Color(0xff2DBB54) : Colors.grey),
+      child: Stack(
+        children: [
+          Container(
+            padding: EdgeInsets.only(left: 10, top: 10, bottom: 10, right: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                textWidget(
+                    text: 'Standard',
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700),
+                textWidget(
+                    text: '\$9.90',
+                    color: Colors.white,
+                    fontWeight: FontWeight.w500),
+                textWidget(
+                    text: '3 MIN',
+                    color: Colors.white.withOpacity(0.8),
+                    fontWeight: FontWeight.normal,
+                    fontSize: 12),
+              ],
+            ),
+          ),
+          Positioned(
+              right: -20,
+              top: 0,
+              bottom: 0,
+              child: Image.asset('assets/Mask Group 2.png'))
         ],
       ),
     );
   }
 
-
-  Future<void> fetchAndSetRoute(String destination) async {
-    try {
-      // Geocode destination to get its coordinates
-      final destinationCoords = await geocodeDestination(destination);
-      if (destinationCoords == null) {
-        throw Exception("Unable to find destination coordinates.");
-      }
-
-      // Fetch the route between the start point and destination
-      final routeDetails = await fetchRoute(startPoint, destinationCoords);
-
-      setState(() {
-        routePoints = routeDetails['routePoints'];
-        final distance = routeDetails['distance'];
-        final duration = routeDetails['duration'];
-        final cost = routeDetails['cost'];
-
-        // Show distance, duration, and cost to the user
-        showRouteDetails(distance, duration, cost);
-      });
-    } catch (e) {
-      print('Error fetching route: $e');
-    }
+  Widget textWidget({required String text,double fontSize = 12, FontWeight fontWeight = FontWeight.normal,Color color = Colors.black}){
+    return Text(text, style: GoogleFonts.poppins(fontSize: fontSize,fontWeight: fontWeight,color: color),);
   }
-
-  void showRouteDetails(double distance, double duration, double cost) {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(12),
-            topRight: Radius.circular(12),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Route Details",
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text("Distance: ${distance.toStringAsFixed(2)} km"),
-            Text("Duration: ${duration.toStringAsFixed(2)} minutes"),
-            Text("Cost: ₱${cost.toStringAsFixed(2)}"),
-            const SizedBox(height: 30),
-            ElevatedButton.icon(
-              onPressed: _showTaxis, // Function to show taxis
-              icon: const Icon(Icons.local_taxi, color: Colors.white),
-              label: const Text("Find Cabs"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.yellow[700],
-                textStyle: const TextStyle(fontSize: 16),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-// Example function to show taxis
-  void _showTaxis() {
-    // Mock implementation to simulate taxi display
-    print("Taxis are being shown on the map!");
-
-    // Implement your logic to fetch and display taxis here.
-    // Example: Add taxi markers to a map or update the UI.
-  }
-
-
-
-  /// Geocode destination address using OpenRouteService
-  Future<LatLng?> geocodeDestination(String address) async {
-    const String apiKey = '5b3ce3597851110001cf624806cb530231bd49338fd6a9a3cd129e38'; // Replace with your API key
-    final url =
-        'https://api.openrouteservice.org/geocode/search?api_key=$apiKey&text=$address';
-
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['features'].isNotEmpty) {
-        final coords = data['features'][0]['geometry']['coordinates'];
-        return LatLng(coords[1], coords[0]);
-      }
-    }
-    return null;
-  }
-
-  Future<Map<String, dynamic>> fetchRoute(LatLng start, LatLng end) async {
-    const String apiKey = '5b3ce3597851110001cf624806cb530231bd49338fd6a9a3cd129e38'; // Replace with your API key
-    final url =
-        'https://api.openrouteservice.org/v2/directions/driving-car?api_key=$apiKey&start=${start.longitude},${start.latitude}&end=${end.longitude},${end.latitude}';
-
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-
-      // Extract route details
-      final coordinates = data['features'][0]['geometry']['coordinates'];
-      final distance = data['features'][0]['properties']['segments'][0]['distance'] / 1000; // Convert meters to kilometers
-      final duration = data['features'][0]['properties']['segments'][0]['duration'] / 60; // Convert seconds to minutes
-
-      // Calculate cost (e.g., $1 per km)
-      const double costPerKm = 15.0;
-      final double cost = distance * costPerKm;
-
-      // Convert coordinates to LatLng
-      final routePoints = coordinates
-          .map<LatLng>((coord) => LatLng(coord[1], coord[0]))
-          .toList();
-
-      return {
-        'routePoints': routePoints,
-        'distance': distance,
-        'duration': duration,
-        'cost': cost,
-      };
-    } else {
-      throw Exception("Failed to fetch route.");
-    }
-  }
-
-
 }
