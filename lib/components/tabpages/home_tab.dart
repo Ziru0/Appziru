@@ -37,7 +37,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
         });
       }
     } catch (e) {
-      print('Error fetching profile data: $e');
+      // print('Error fetching profile data: $e');
     }
   }
   final user=FirebaseAuth.instance.currentUser;
@@ -52,6 +52,9 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   LatLng? startCoordinates;
   LatLng? endCoordinates;
+
+  List<LatLng> polylinePoints = []; // List to store polyline points
+
 
   List<LatLng> polylineCoordinates = [];
 
@@ -100,7 +103,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Future<void> fetchRoute() async {
     if (startCoordinates == null || endCoordinates == null) {
-      print('Start or end coordinates are null!');
+      // print('Start or end coordinates are null!');
       return;
     }
 
@@ -127,6 +130,14 @@ class _HomeTabPageState extends State<HomeTabPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
+        // Extract polyline points from the response
+        final geometry = data['routes'][0]['geometry'];
+        final decodedPolyline = decodePolyline(geometry);
+
+        // Update the polyline points
+        polylinePoints = decodedPolyline;
+        setState(() {});
+
         // Extract route details
         final distance =
             data['routes'][0]['summary']['distance'] / 1000; // Convert to km
@@ -135,14 +146,49 @@ class _HomeTabPageState extends State<HomeTabPage> {
         final cost = distance * 10; // Example calculation for cost
 
         // Call the method with the calculated values
-        buildRideConfirmationSheet(distance, duration, cost);
-      } else {
-        print("Failed to fetch route: ${response.body}");
+        // Add a delay before showing the ride confirmation sheet
+        Future.delayed(Duration(seconds: 5), () {
+          buildRideConfirmationSheet(distance, duration, cost);
+        });      } else {
+        // print("Failed to fetch route: ${response.body}");
       }
     } catch (e) {
-      print("Error fetching route: $e");
+      // print("Error fetching route: $e");
     }
   }
+
+  List<LatLng> decodePolyline(String encoded) {
+    List<LatLng> polyline = [];
+    int index = 0, len = encoded.length;
+    int lat = 0, lng = 0;
+
+    while (index < len) {
+      int shift = 0, result = 0;
+      int b;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int deltaLat = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lat += deltaLat;
+
+      shift = 0;
+      result = 0;
+      do {
+        b = encoded.codeUnitAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+      int deltaLng = (result & 1) != 0 ? ~(result >> 1) : (result >> 1);
+      lng += deltaLng;
+
+      polyline.add(LatLng(lat / 1E5, lng / 1E5));
+    }
+
+    return polyline;
+  }
+
 
 
   @override
@@ -150,11 +196,9 @@ class _HomeTabPageState extends State<HomeTabPage> {
     return Scaffold(
       drawer: buildDrawer(userName: "Harold Andrei Ruiz", userImage: null), // Assign
       appBar: AppBar(
-
         title: Text(
           "Home",
           style: GoogleFonts.poppins(),
-
         ),
         leading: Builder(
           builder: (context) => IconButton(
@@ -177,6 +221,18 @@ class _HomeTabPageState extends State<HomeTabPage> {
               TileLayer(
                 urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 subdomains: ['a', 'b', 'c'],
+              ),
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: polylinePoints, // Use the polyline points here
+                    color: Colors.blue,
+                    strokeWidth: 4.0,
+                  ),
+                ],
+              ),
+              MarkerLayer(
+                markers: markers.toList(),
               ),
             ],
           ),
@@ -394,7 +450,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                           await fetchRoute();
 
                           // Debug log
-                          print("Showing Ride Confirmation Sheet");
+                          // print("Showing Ride Confirmation Sheet");
 
                           // Ensure display
                           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -635,12 +691,12 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   onPressed: () {
                     // Confirm button action
                   },
+                  color: Colors.blue, // Set button color
+                  shape: StadiumBorder(),
                   child: textWidget(
                     text: 'Confirm',
                     color: Colors.white,
                   ),
-                  color: Colors.blue, // Set button color
-                  shape: StadiumBorder(),
                 )
               ],
             ),
@@ -653,7 +709,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
   int selectedRide = 0;
 
   buildDriversList() {
-    return Container(
+    return SizedBox(
       height: 90,
       width: Get.width,
       child: StatefulBuilder(builder: (context, set) {
