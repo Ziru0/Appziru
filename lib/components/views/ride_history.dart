@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:get/get_core/src/get_main.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lage/components/tabpages/home_tab.dart';
-import '../homepagetesting.dart';
 
 class RideHistoryScreen extends StatelessWidget {
   const RideHistoryScreen({super.key});

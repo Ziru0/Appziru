@@ -5,7 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:lage/components/views/homescreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/monggodb.dart';
-import '../drivers/driver_home.dart';
+import '../wrapper.dart';  // Import your Wrapper page here
 
 class Profilesetup extends StatefulWidget {
   const Profilesetup({super.key});
@@ -34,47 +34,54 @@ class _ProfilesetupState extends State<Profilesetup> {
     }
   }
 
-  // Save profile setup and navigate to the appropriate page
+  // Save profile setup and navigate to the "Wrapper" page
   Future<void> _completeProfileSetup() async {
-    if (selectedRole == null) {
+    try {
+      if (selectedRole == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please select a role.")),
+        );
+        return;
+      }
+
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      prefs.setBool('isProfileSetUp', true);
+
+      var user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("User not logged in.")),
+        );
+        return;
+      }
+
+      String firebaseId = user.uid;
+
+      // Insert data into MongoDB
+      await _insertData(
+        firebaseId,
+        fnameController.text,
+        numberController.text,
+        addressController.text,
+        selectedRole!,
+      );
+
+      // Ensure navigation is executed
+      if (mounted) {
+        // Delay navigation to give time for profile setup to complete
+        await Future.delayed(const Duration(seconds: 2)); // Adjust time as needed
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const Wrapper()),
+        );
+      }
+    } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a role.")),
-      );
-      return;
-    }
-
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    prefs.setBool('isProfileSetUp', true);
-    var user = FirebaseAuth.instance.currentUser;
-    String firebaseId = user!.uid;
-
-    // Insert data into MongoDB
-    await _insertData(
-      firebaseId,
-      fnameController.text,
-      numberController.text,
-      addressController.text,
-      selectedRole!,
-    );
-
-    // Navigate to a specific page based on the role
-    if (selectedRole == "Driver") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const DriverHomePage(), // Navigate to Driver Setup Page
-        ),
-      );
-    } else if (selectedRole == "Passenger") {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const HomeScreen(),
-        ),
+        SnackBar(content: Text("Error: $e")),
       );
     }
   }
-
 
   Future<void> _insertData(
       String firebaseId, String fName, String number, String address, String role) async {
@@ -194,8 +201,8 @@ class _ProfilesetupState extends State<Profilesetup> {
               Center(
                 child: ElevatedButton.icon(
                   onPressed: _completeProfileSetup,
-                  icon: const Icon(Icons.save),
-                  label: const Text("Complete Setup"),
+                  icon: const Icon(Icons.done),
+                  label: const Text("Done"),  // Button text changed to "Done"
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 24,

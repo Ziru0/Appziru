@@ -12,6 +12,8 @@ import 'package:lage/components/views/settings.dart';
 import 'package:lage/components/views/support.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
+import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
+import '../../dbHelper/MongoDBModeluser.dart';
 import '../../dbHelper/monggodb.dart';
 
 class HomeTabPage extends StatefulWidget {
@@ -101,9 +103,14 @@ class _HomeTabPageState extends State<HomeTabPage> {
     return null;
   }
 
+  List<MongoDbModelUser> users = [];
+  String getCurrentFirebaseUserId() {
+    return FirebaseAuth.instance.currentUser?.uid ?? "";
+  }
+
   Future<void> fetchRoute() async {
     if (startCoordinates == null || endCoordinates == null) {
-      // print('Start or end coordinates are null!');
+      print('🚨 Start or end coordinates are null!');
       return;
     }
 
@@ -130,32 +137,70 @@ class _HomeTabPageState extends State<HomeTabPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Extract polyline points from the response
+        // 🔹 Extract polyline data first
         final geometry = data['routes'][0]['geometry'];
         final decodedPolyline = decodePolyline(geometry);
 
-        // Update the polyline points
-        polylinePoints = decodedPolyline;
-        setState(() {});
+        // 🔹 Update UI to show the polyline immediately
+        setState(() {
+          polylinePoints = decodedPolyline;
+        });
 
-        // Extract route details
-        final distance =
-            data['routes'][0]['summary']['distance'] / 1000; // Convert to km
-        final duration =
-            data['routes'][0]['summary']['duration'] / 60; // Convert to minutes
-        final cost = distance * 10; // Example calculation for cost
+        // 🔹 Move the map to fit the polyline
+        moveMapToPolyline();
 
-        // Call the method with the calculated values
-        // Add a delay before showing the ride confirmation sheet
+        // 🔹 Extract route details
+        final double distance = data['routes'][0]['summary']['distance'] / 1000; // in km
+        final double duration = data['routes'][0]['summary']['duration'] / 60;   // in minutes
+        final double cost = distance * 10;
+
+        // 🔹 Fetch user details asynchronously (DOES NOT BLOCK POLYLINE)
+        String firebaseUserId = getCurrentFirebaseUserId();
+        MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
+
+        if (loggedInUser != null) {
+          // 🔹 Create ride request
+          MongoDbModelUser requestUser = MongoDbModelUser(
+            id: mongo.ObjectId(),
+            role: 'Passenger',
+            fullname: loggedInUser.fullname,  // Get name from database
+            number: loggedInUser.number,      // Get number from database
+            coordinates: {
+              'start': {
+                'longitude': startCoordinates?.longitude,
+                'latitude': startCoordinates?.latitude,
+              },
+              'end': {
+                'longitude': endCoordinates?.longitude,
+                'latitude': endCoordinates?.latitude,
+              }
+            },
+            distance: distance,
+            duration: duration,
+            cost: cost,
+          );
+
+          // 🔹 Save request without blocking UI
+          await MongoDatabase.saveRequest(requestUser as Map<String, dynamic>);
+          print("✅ Ride request saved successfully!");
+        } else {
+          print("🚨 Failed to fetch user details!");
+        }
+
+        // 🔹 Show confirmation after a delay
         Future.delayed(Duration(seconds: 5), () {
           buildRideConfirmationSheet(distance, duration, cost);
-        });      } else {
-        // print("Failed to fetch route: ${response.body}");
+        });
+
+      } else {
+        print("❌ Failed to fetch route: ${response.body}");
       }
     } catch (e) {
-      // print("Error fetching route: $e");
+      print("❌ Error fetching route: $e");
     }
   }
+
+
 
   List<LatLng> decodePolyline(String encoded) {
     List<LatLng> polyline = [];
@@ -189,7 +234,36 @@ class _HomeTabPageState extends State<HomeTabPage> {
     return polyline;
   }
 
+  double zoomLevel = 13.0; // Default zoom level
 
+  void moveMapToPolyline() {
+    if (polylinePoints.isEmpty) return;
+
+    double minLat = polylinePoints.first.latitude;
+    double maxLat = polylinePoints.first.latitude;
+    double minLng = polylinePoints.first.longitude;
+    double maxLng = polylinePoints.first.longitude;
+
+    for (LatLng point in polylinePoints) {
+      if (point.latitude < minLat) minLat = point.latitude;
+      if (point.latitude > maxLat) maxLat = point.latitude;
+      if (point.longitude < minLng) minLng = point.longitude;
+      if (point.longitude > maxLng) maxLng = point.longitude;
+    }
+
+    // Compute center of the polyline
+    double centerLat = (minLat + maxLat) / 2;
+    double centerLng = (minLng + maxLng) / 2;
+
+    // Estimate a good zoom level (tweak as needed)
+    double latDiff = maxLat - minLat;
+    double lngDiff = maxLng - minLng;
+    zoomLevel = (latDiff > lngDiff) ? 14.0 - (latDiff * 5) : 14.0 - (lngDiff * 5);
+    zoomLevel = zoomLevel.clamp(10.0, 18.0); // Keep zoom within a reasonable range
+
+    // Move the map
+    mapController.move(LatLng(centerLat, centerLng), zoomLevel);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -243,7 +317,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
           buildTextField(),
           buildTextFieldForSource(), // Ensure this is displayed correctly
           buildCurrentLocationIcon(),
-          buildBottomSheet(),
         ],
       ),
     );
@@ -263,7 +336,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
         height: Get.width * 0.5,
         padding:
         const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        decoration: const BoxDecoration(color: Colors.white70),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           mainAxisAlignment: MainAxisAlignment.center,
@@ -328,7 +400,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Widget buildTextField() {
     return Positioned(
-      top: 280,
+      top: 200,
       left: 20,
       right: 20,
       child: SingleChildScrollView(
@@ -393,10 +465,9 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Set<Marker> markers = {};
 
-
   Widget buildTextFieldForSource() {
     return Positioned(
-      top: 340,
+      top: 260,
       left: 20,
       right: 20,
       child: SingleChildScrollView(
@@ -467,9 +538,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-  double distance = 0.0;
-  double duration = 0.0;
-  double cost = 0.0;
 
   Widget buildCurrentLocationIcon() {
     return Align(
@@ -488,32 +556,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-  Widget buildBottomSheet() {
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        width: Get.width * 0.8,
-        height: 25,
-        decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withAlpha((0.1 * 255).toInt()),
-                  spreadRadius: 4,
-                  blurRadius: 10)
-            ],
-            borderRadius: BorderRadius.only(
-                topRight: Radius.circular(12), topLeft: Radius.circular(12))),
-        child: Center(
-          child: Container(
-            width: Get.width * 0.6,
-            height: 4,
-            color: Colors.black45,
-          ),
-        ),
-      ),
-    );
-  }
 
   buildDrawer({String? userName, String? userImage}) {
     return Drawer(
@@ -607,24 +649,18 @@ class _HomeTabPageState extends State<HomeTabPage> {
   buildRideConfirmationSheet(double distance, double duration, double cost) {
     Get.bottomSheet(Container(
       width: Get.width,
-      height: Get.height * 0.5,
-      padding: EdgeInsets.only(left: 20),
+      height: Get.height * 0.3,
+      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.only(
-          topRight: Radius.circular(12),
-          topLeft: Radius.circular(12),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
-            height: 10,
-          ),
           Center(
             child: Container(
-              width: Get.width * 0.2,
+              width: 50,
               height: 8,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
@@ -632,73 +668,19 @@ class _HomeTabPageState extends State<HomeTabPage> {
               ),
             ),
           ),
-          const SizedBox(
-            height: 20,
-          ),
-          textWidget(
-            text: 'Route Summary:',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-          const SizedBox(
-            height: 10,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                textWidget(
-                  text: 'Distance: ${distance.toStringAsFixed(2)} km',
-                  fontSize: 16,
-                ),
-                textWidget(
-                  text: 'Duration: ${duration.toStringAsFixed(2)} minutes',
-                  fontSize: 16,
-                ),
-                textWidget(
-                  text: 'Estimated Cost: ₱${cost.toStringAsFixed(2)}',
-                  fontSize: 16,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          textWidget(
-            text: 'Select an option:',
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-          const SizedBox(
-            height: 20,
-          ),
-          buildDriversList(),
-          const SizedBox(
-            height: 20,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Divider(),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                MaterialButton(
-                  onPressed: () {
-                    // Confirm button action
-                  },
-                  color: Colors.blue, // Set button color
-                  shape: StadiumBorder(),
-                  child: textWidget(
-                    text: 'Confirm',
-                    color: Colors.white,
-                  ),
-                )
-              ],
+          textWidget(text: 'Select a Driver:', fontSize: 18, fontWeight: FontWeight.bold),
+          SizedBox(height: 10),
+          buildDriversList(distance, duration, cost), // Pass the values
+          SizedBox(height: 20),
+          Divider(),
+          Center(
+            child: MaterialButton(
+              onPressed: () {
+                // Confirm button action
+              },
+              color: Colors.blue,
+              shape: StadiumBorder(),
+              child: textWidget(text: 'Confirm', color: Colors.white),
             ),
           )
         ],
@@ -706,80 +688,106 @@ class _HomeTabPageState extends State<HomeTabPage> {
     ));
   }
 
-  int selectedRide = 0;
+  int selectedRide = -1;
 
-  buildDriversList() {
-    return SizedBox(
-      height: 90,
-      width: Get.width,
-      child: StatefulBuilder(builder: (context, set) {
-        return ListView.builder(
-          itemBuilder: (ctx, i) {
-            return InkWell(
-              onTap: () {
-                set(() {
-                  selectedRide = i;
-                });
-              },
-              child: buildDriverCard(selectedRide == i),
-            );
-          },
-          itemCount: 3,
-          scrollDirection: Axis.horizontal,
+  Widget buildDriversList(double distance, double duration, double cost) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(child: textWidget(text: "No drivers available", fontSize: 16));
+        }
+
+        // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
+        List<MongoDbModelUser> users = snapshot.data!
+            .map((data) => MongoDbModelUser.fromJson(data))
+            .toList();
+
+        // Filter the users where the role is 'Driver'
+        List<MongoDbModelUser> filteredUsers = users
+            .where((user) => user.role == 'Driver')
+            .toList();
+
+        // Debugging: Print the fetched users list
+        print("Fetched users: ${filteredUsers.length}");
+
+        return SizedBox(
+          height: 100,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return ListView.builder(
+                itemCount: filteredUsers.length,
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (ctx, i) {
+                  var driver = filteredUsers[i];
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        selectedRide = i;
+                      });
+                    },
+                    child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
+                  );
+                },
+              );
+            },
+          ),
         );
-      }),
+      },
     );
   }
 
-  buildDriverCard(bool selected) {
+  buildDriverCard(MongoDbModelUser user, bool selected, double distance, double duration, double cost) {
     return Container(
-      margin: EdgeInsets.only(right: 8, left: 8, top: 4, bottom: 4),
-      height: 85,
-      width: 165,
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      height: 90,
+      width: 170,
       decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-                color: selected
-                    ? Color(0xff2DBB54).withOpacity(0.2)
-                    : Colors.grey.withOpacity(0.2),
-                offset: Offset(0, 5),
-                blurRadius: 5,
-                spreadRadius: 1)
-          ],
-          borderRadius: BorderRadius.circular(12),
-          color: selected ? Color(0xff2DBB54) : Colors.grey),
-      child: Stack(
-        children: [
-          Container(
-            padding: EdgeInsets.only(left: 10, top: 10, bottom: 10, right: 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                textWidget(
-                    text: 'Standard',
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700),
-                textWidget(
-                    text: '\$9.90',
-                    color: Colors.white,
-                    fontWeight: FontWeight.w500),
-                textWidget(
-                    text: '3 MIN',
-                    color: Colors.white.withOpacity(0.8),
-                    fontWeight: FontWeight.normal,
-                    fontSize: 12),
-              ],
-            ),
+        boxShadow: [
+          BoxShadow(
+            color: selected ? Color(0xff2DBB54).withOpacity(0.2) : Colors.grey.withOpacity(0.2),
+            offset: Offset(0, 5),
+            blurRadius: 5,
+            spreadRadius: 1,
           ),
-          Positioned(
-              right: -20,
-              top: 0,
-              bottom: 0,
-              child: Image.asset('assets/Mask Group 2.png'))
         ],
+        borderRadius: BorderRadius.circular(12),
+        color: selected ? Color(0xff2DBB54) : Colors.grey,
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            textWidget(
+              text: '${user.fullname ?? "No Name"}',  // Display the driver's name directly
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+            ),
+            textWidget(
+              text: 'Est. Fare: ₱${cost.toStringAsFixed(2)}',  // Estimated fare
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+            textWidget(
+              text: 'ETA: ${duration.toStringAsFixed(2)} MIN',  // Estimated time of arrival
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 12,
+            ),
+            textWidget(
+              text: 'Distance: ${distance.toStringAsFixed(2)} km',  // Distance
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 12,
+            ),
+          ],
+        ),
       ),
     );
   }
+
 
   Widget textWidget({required String text,double fontSize = 12, FontWeight fontWeight = FontWeight.normal,Color color = Colors.black}){
     return Text(text, style: GoogleFonts.poppins(fontSize: fontSize,fontWeight: fontWeight,color: color),);

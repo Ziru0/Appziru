@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/signup/login_page.dart';
+import 'package:lage/components/signup/signup_page.dart'; // Import the Signup Page
 import 'package:lage/components/tabpages/home_tab.dart';
 import 'package:lage/dbHelper/MongoDBModeluser.dart';
 import '../dbHelper/monggodb.dart';
@@ -32,12 +33,14 @@ class _WrapperState extends State<Wrapper> {
                     return const Center(child: Text('Error fetching user role'));
                   } else {
                     final role = roleSnapshot.data?['role'];
+
                     if (role == 'Passenger') {
                       return const HomeTabPage();
                     } else if (role == 'Driver') {
-                      return const DriverHomePage();
+                      return DriverHomePage();
                     } else {
-                      return const Center(child: Text('Invalid role'));
+                      // If no role, redirect to Signup Page
+                      return const SignupPage();
                     }
                   }
                 },
