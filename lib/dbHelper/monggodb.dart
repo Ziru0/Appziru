@@ -123,29 +123,19 @@ class MongoDatabase {
     return await userCollection.findOne(where.eq('firebaseId', firebaseId));
   }
 
-  // Save request data into 'requests' collection
+// Save request data into 'requests' collection
   static Future<void> saveRequest(Map<String, dynamic> requestData) async {
     var collection = db.collection('requests');
+
+    // Ensure the request has a 'status' and 'driverId'
+    requestData['status'] = 'pending'; // Default status when a ride is requested
+    requestData['driverId'] = null; // Initially no driver assigned
+
     await collection.insert(requestData);
   }
 
-  static Future<List<Map<String, dynamic>>> getRequests() async {
-    try {
-      var collection = db.collection('requests');
-      var data = await collection.find({'status': 'pending'}).toList();
-      return data;
-    } catch (e) {
-      print('❌ Error fetching requests: $e');
-      return [];
-    }
-  }
 
-  static Stream<List<Map<String, dynamic>>> watchRequests() {
-    var collection = db.collection('requests');
-    return collection
-        .watch()
-        .map((_) => collection.find({'status': 'pending'}).toList());
-  }
+
 
 
 }

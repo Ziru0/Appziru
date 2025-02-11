@@ -104,6 +104,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
   }
 
   List<MongoDbModelUser> users = [];
+
   String getCurrentFirebaseUserId() {
     return FirebaseAuth.instance.currentUser?.uid ?? "";
   }
@@ -154,42 +155,14 @@ class _HomeTabPageState extends State<HomeTabPage> {
         final double duration = data['routes'][0]['summary']['duration'] / 60;   // in minutes
         final double cost = distance * 10;
 
-        // 🔹 Fetch user details asynchronously (DOES NOT BLOCK POLYLINE)
-        String firebaseUserId = getCurrentFirebaseUserId();
-        MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
-
-        if (loggedInUser != null) {
-          // 🔹 Create ride request
-          MongoDbModelUser requestUser = MongoDbModelUser(
-            id: mongo.ObjectId(),
-            role: 'Passenger',
-            fullname: loggedInUser.fullname,  // Get name from database
-            number: loggedInUser.number,      // Get number from database
-            coordinates: {
-              'start': {
-                'longitude': startCoordinates?.longitude,
-                'latitude': startCoordinates?.latitude,
-              },
-              'end': {
-                'longitude': endCoordinates?.longitude,
-                'latitude': endCoordinates?.latitude,
-              }
-            },
-            distance: distance,
-            duration: duration,
-            cost: cost,
-          );
-
-          // 🔹 Save request without blocking UI
-          await MongoDatabase.saveRequest(requestUser as Map<String, dynamic>);
-          print("✅ Ride request saved successfully!");
-        } else {
-          print("🚨 Failed to fetch user details!");
-        }
-
-        // 🔹 Show confirmation after a delay
+        // 🔹 Show confirmation inside `setState()` after a delay
         Future.delayed(Duration(seconds: 5), () {
-          buildRideConfirmationSheet(distance, duration, cost);
+          print("🚀 Showing Ride Confirmation Sheet...");
+          if (mounted) {
+            Get.bottomSheet(
+                buildRideConfirmationSheet(distance, duration, cost)
+            );
+          }
         });
 
       } else {
@@ -200,6 +173,45 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
+
+
+  
+  Future<void> saveRideRequest(
+      MongoDbModelUser selectedDriver, double distance, double duration, double cost) async {
+
+    String firebaseUserId = getCurrentFirebaseUserId();
+    MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
+
+    if (loggedInUser != null) {
+      // Create ride request with selected driver
+      Map<String, dynamic> requestData = {
+        "_id": mongo.ObjectId(), // ✅ Generate a new ObjectId
+        "passengerId": loggedInUser.id.oid,
+        "driverId": selectedDriver.id.oid,  // Assign selected driver
+        "fullname": loggedInUser.fullname,
+        "number": loggedInUser.number,
+        "coordinates": {
+          "start": {
+            "longitude": startCoordinates?.longitude,
+            "latitude": startCoordinates?.latitude,
+          },
+          "end": {
+            "longitude": endCoordinates?.longitude,
+            "latitude": endCoordinates?.latitude,
+          }
+        },
+        "distance": distance,  // ✅ Fix: Use calculated distance
+        "duration": duration,  // ✅ Fix: Use calculated duration
+        "cost": cost,          // ✅ Fix: Use calculated cost
+        "status": "pending",   // Initial status
+      };
+
+      await MongoDatabase.saveRequest(requestData);
+      print("✅ Ride request saved with driver: ${selectedDriver.fullname}");
+    } else {
+      print("🚨 Failed to fetch user details!");
+    }
+  }
 
 
   List<LatLng> decodePolyline(String encoded) {
@@ -264,6 +276,9 @@ class _HomeTabPageState extends State<HomeTabPage> {
     // Move the map
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
+
+  MongoDbModelUser? selectedDriver;
+
 
   @override
   Widget build(BuildContext context) {
@@ -646,8 +661,8 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-  buildRideConfirmationSheet(double distance, double duration, double cost) {
-    Get.bottomSheet(Container(
+  Widget buildRideConfirmationSheet(double distance, double duration, double cost) {
+    return Container(
       width: Get.width,
       height: Get.height * 0.3,
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -670,22 +685,28 @@ class _HomeTabPageState extends State<HomeTabPage> {
           ),
           textWidget(text: 'Select a Driver:', fontSize: 18, fontWeight: FontWeight.bold),
           SizedBox(height: 10),
-          buildDriversList(distance, duration, cost), // Pass the values
+          buildDriversList(distance, duration, cost), // ✅ Pass the values
           SizedBox(height: 20),
           Divider(),
           Center(
             child: MaterialButton(
               onPressed: () {
-                // Confirm button action
+                if (selectedDriver != null) {
+                  saveRideRequest(selectedDriver!, distance, duration, cost);
+                  Get.back(); // Close the bottom sheet
+                  print("✅ Ride request confirmed with ${selectedDriver!.fullname}!");
+                } else {
+                  print("🚨 Please select a driver before confirming!");
+                }
               },
               color: Colors.blue,
               shape: StadiumBorder(),
               child: textWidget(text: 'Confirm', color: Colors.white),
             ),
-          )
+          ),
         ],
       ),
-    ));
+    );
   }
 
   int selectedRide = -1;
@@ -724,12 +745,14 @@ class _HomeTabPageState extends State<HomeTabPage> {
                 itemBuilder: (ctx, i) {
                   var driver = filteredUsers[i];
                   return InkWell(
-                    onTap: () {
-                      setState(() {
-                        selectedRide = i;
-                      });
-                    },
-                    child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
+                      onTap: () {
+                        setState(() {
+                          selectedRide = i;
+                          selectedDriver = filteredUsers[i]; // ✅ Store the selected driver
+                        });
+                      },
+
+                      child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
                   );
                 },
               );
