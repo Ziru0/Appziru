@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../dbHelper/monggodb.dart';
+import '../../signup/profilesetup.dart';
 import 'edit_profile.dart';
 
 class ProfilePage extends StatefulWidget {
@@ -100,7 +101,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const EditProfilePage(profileData: {},)), // Navigate to setup page
+                        builder: (context) => const Profilesetup(),
+                    ) // Navigate to setup page
                   );
                 },
                 icon: const Icon(Icons.edit),

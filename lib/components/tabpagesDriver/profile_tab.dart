@@ -116,7 +116,8 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
               buildAccountOption(
                 title: "Edit Profile",
                 icon: Icons.edit,
-                onTap: () => Get.to(() => const EditProfile()),
+                onTap: () => Get.to(() => const EditProfile(),
+                )
               ),
               buildAccountOption(
                 title: "Change Password",

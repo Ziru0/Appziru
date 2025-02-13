@@ -1,12 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/signup/login_page.dart';
-import 'package:lage/components/signup/signup_page.dart'; // Import the Signup Page
-import 'package:lage/components/tabpages/home_tab.dart';
+import 'package:lage/components/signup/signup_page.dart';
+import 'package:lage/components/tabpagesDriver/homescreendriver.dart';
 import 'package:lage/components/views/homescreen.dart';
-import 'package:lage/dbHelper/MongoDBModeluser.dart';
-import '../dbHelper/monggodb.dart';
-import 'drivers/driver_home.dart';
+import 'package:lage/dbHelper/monggodb.dart';
 
 class Wrapper extends StatefulWidget {
   const Wrapper({super.key});
@@ -31,16 +29,21 @@ class _WrapperState extends State<Wrapper> {
                   if (roleSnapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   } else if (roleSnapshot.hasError || roleSnapshot.data == null) {
-                    return const Center(child: Text('Error fetching user role'));
+                    // Navigate to LoginPage when an error occurs
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                      );
+                    });
+                    return const SizedBox(); // Return an empty widget to avoid build errors
                   } else {
                     final role = roleSnapshot.data?['role'];
 
                     if (role == 'Passenger') {
                       return const HomeScreen();
                     } else if (role == 'Driver') {
-                      return DriverHomePage();
+                      return HomeScreenDriver();
                     } else {
-                      // If no role, redirect to Signup Page
                       return const SignupPage();
                     }
                   }

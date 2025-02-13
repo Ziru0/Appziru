@@ -601,7 +601,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
               child: MaterialButton(
                 onPressed: () {
                   if (!isAgreed) {
-                    print("🚨 Please agree to the terms before confirming!");
                     Get.snackbar(
                       "Agreement Required",
                       "Please agree to the terms before confirming.",
@@ -626,7 +625,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
                       duration: Duration(seconds: 4),
                     );
                   } else {
-                    print("🚨 Please select a driver before confirming!");
                     Get.snackbar(
                       "No Driver Selected",
                       "Please select a driver before confirming.",

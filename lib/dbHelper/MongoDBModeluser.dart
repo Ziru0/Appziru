@@ -72,6 +72,8 @@ class MongoDbModelUser {
     );
   }
 
+  get profileImage => null;
+
   Map<String, dynamic> toJson() => {
     "_id": id,
     "email": email,

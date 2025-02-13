@@ -45,34 +45,7 @@ class MongoDatabase {
     final arrData = await userCollection.find().toList();
     return arrData;
   }
-
-  // Fetch only users with role "Driver"
-  static Future<List<MongoDbModelUser>> getDrivers() async {
-    try {
-      var collection = db.collection(PROFILE_COLLECTION);
-      var query = where.eq('role', 'Driver');
-      print("🔍 Executing Query: $query");
-
-      var result = await collection.find(query).toList();
-      print("🔍 Raw Driver Data: $result");
-
-      if (result.isEmpty) {
-        print("🚨 No drivers found in the database!");
-        return [];
-      }
-
-      List<MongoDbModelUser> drivers = result.map((doc) {
-        return MongoDbModelUser.fromJson(Map<String, dynamic>.from(doc));
-      }).toList();
-
-      print("✅ Successfully Parsed Drivers: ${drivers.length}");
-      return drivers;
-    } catch (e) {
-      print("❌ Error fetching drivers: $e");
-      return [];
-    }
-  }
-
+  
   // Insert user data
   static Future<String> insertUser(MongoDbModelUser data) async {
     try {
@@ -139,11 +112,22 @@ class MongoDatabase {
 
   static Future<void> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
     var collection = db.collection('users');
-    await collection.updateOne(
+
+    print("🔍 Updating profile for FirebaseID: $firebaseId");
+    print("📌 Updated Data: $updatedData");
+
+    var result = await collection.updateOne(
       {'firebaseId': firebaseId},
       {'\$set': updatedData},
     );
+
+    if (result.isSuccess) {
+      print("✅ Profile updated successfully!");
+    } else {
+      print("❌ Failed to update profile");
+    }
   }
+
   
   static Future<List<Map<String, dynamic>>> getRideHistory(String userId) async {
     try {
@@ -154,5 +138,7 @@ class MongoDatabase {
       return [];
     }
   }
+
+
 
 }
