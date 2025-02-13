@@ -1,11 +1,12 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:lage/components/views/homescreen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/monggodb.dart';
 import '../wrapper.dart';  // Import your Wrapper page here
+import 'package:http/http.dart' as http;
+
 
 class Profilesetup extends StatefulWidget {
   const Profilesetup({super.key});
@@ -26,13 +27,43 @@ class _ProfilesetupState extends State<Profilesetup> {
   // Pick image from gallery
   Future<void> _pickImage() async {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-
     if (pickedFile != null) {
-      setState(() {
-        _profileImage = File(pickedFile.path);
-      });
+      File imageFile = File(pickedFile.path);
+      String? imageUrl = await uploadImageToCloudinary(imageFile); // Upload to Cloudinary
+      if (imageUrl != null) {
+        setState(() {
+          _profileImage = imageFile; // Update UI
+        });
+        print("Image Uploaded: $imageUrl");
+      } else {
+        print("Upload failed");
+      }
     }
   }
+
+
+  Future<String?> uploadImageToCloudinary(File imageFile) async {
+    String cloudName = "dpiqvnwpk";  // Replace with your Cloudinary Cloud Name
+    String uploadPreset = "fgf2cwjh";  // Replace with your Cloudinary Upload Preset
+
+    var url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+
+    var request = http.MultipartRequest("POST", url)
+      ..fields['upload_preset'] = uploadPreset
+      ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+
+    var response = await request.send();
+    var responseData = await response.stream.bytesToString();
+    var jsonData = json.decode(responseData);
+
+    if (response.statusCode == 200) {
+      return jsonData['secure_url']; // Return the Cloudinary-hosted image URL
+    } else {
+      print("Cloudinary Upload Error: ${jsonData['error']['message']}");
+      return null;
+    }
+  }
+
 
   // Save profile setup and navigate to the "Wrapper" page
   Future<void> _completeProfileSetup() async {
@@ -44,9 +75,6 @@ class _ProfilesetupState extends State<Profilesetup> {
         return;
       }
 
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      prefs.setBool('isProfileSetUp', true);
-
       var user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -57,20 +85,22 @@ class _ProfilesetupState extends State<Profilesetup> {
 
       String firebaseId = user.uid;
 
-      // Insert data into MongoDB
+      // Upload image before inserting data
+      String? imageUrl;
+      if (_profileImage != null) {
+        imageUrl = await uploadImageToCloudinary(_profileImage!);
+      }
+
       await _insertData(
         firebaseId,
         fnameController.text,
         numberController.text,
         addressController.text,
         selectedRole!,
+        imageUrl, // Pass uploaded image URL
       );
 
-      // Ensure navigation is executed
       if (mounted) {
-        // Delay navigation to give time for profile setup to complete
-        await Future.delayed(const Duration(seconds: 2)); // Adjust time as needed
-
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const Wrapper()),
@@ -83,18 +113,22 @@ class _ProfilesetupState extends State<Profilesetup> {
     }
   }
 
+
+
   Future<void> _insertData(
-      String firebaseId, String fName, String number, String address, String role) async {
+      String firebaseId, String fName, String number, String address, String role, String? imageUrl) async {
     Map<String, dynamic> updatedData = {
-      "role": role, // Include the role in the data
+      "role": role,
+      "profileImage": imageUrl, // Store Cloudinary URL
     };
 
-    var result = await MongoDatabase.updateOne(
-        firebaseId, fName, address, number, updatedData);
+    var result = await MongoDatabase.updateOne(firebaseId, fName, address, number, updatedData);
     ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Updated profile for: $firebaseId")));
     _clearAll();
   }
+
+
 
   // Clear all form fields
   void _clearAll() {

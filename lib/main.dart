@@ -4,6 +4,7 @@ import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import '../../dbHelper/monggodb.dart';
+import 'components/views/homescreen.dart';
 import 'components/wrapper.dart';
 
 
@@ -27,7 +28,7 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         textTheme: GoogleFonts.poppinsTextTheme(textTheme),
       ),
-      home:    Wrapper (),
+      home:    HomeScreen (),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lage/components/signup/profilesetup.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
+import 'package:lage/components/tabpages/profilepages/edit_profile.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
 import 'package:lage/components/tabpages/profilepages/notifications.dart';
 
@@ -114,27 +115,13 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
               buildAccountOption(
                 title: "Edit Profile",
                 icon: Icons.edit,
-                onTap: () => Get.to(() => const Profilesetup()),
+                onTap: () => Get.to(() => const EditProfilePage(profileData: {},)),
               ),
               buildAccountOption(
                 title: "Change Password",
                 icon: Icons.lock,
                 onTap: () {
                   // Navigate to Change Password Page
-                },
-              ),
-              buildAccountOption(
-                title: "Payment Methods",
-                icon: Icons.payment,
-                onTap: () {
-                  // Navigate to Payment Methods Page
-                },
-              ),
-              buildAccountOption(
-                title: "Ride Preferences",
-                icon: Icons.directions_car,
-                onTap: () {
-                  // Navigate to Ride Preferences Page
                 },
               ),
               const Divider(),
@@ -190,8 +177,8 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
                 title: "Log Out",
                 icon: Icons.logout,
                 onTap: () {
-                  // Handle Log Out
-                },
+                  FirebaseAuth.instance.signOut();
+                  },
               ),
             ],
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lage/components/signup/login_page.dart';
 import 'package:lage/components/signup/signup_page.dart'; // Import the Signup Page
 import 'package:lage/components/tabpages/home_tab.dart';
+import 'package:lage/components/views/homescreen.dart';
 import 'package:lage/dbHelper/MongoDBModeluser.dart';
 import '../dbHelper/monggodb.dart';
 import 'drivers/driver_home.dart';
@@ -35,7 +36,7 @@ class _WrapperState extends State<Wrapper> {
                     final role = roleSnapshot.data?['role'];
 
                     if (role == 'Passenger') {
-                      return const HomeTabPage();
+                      return const HomeScreen();
                     } else if (role == 'Driver') {
                       return DriverHomePage();
                     } else {

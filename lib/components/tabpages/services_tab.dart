@@ -41,31 +41,31 @@ class ServicesTabPage extends StatelessWidget {
             Expanded(
               child: ListView(
                 children: [
-                  buildServiceItem(
-                    icon: Icons.local_taxi,
-                    title: "Ride Sharing",
-                    description: "Affordable rides for your daily commute.",
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Navigate to Ride Sharing"),
-                        ),
-                      );
-                    },
-                  ),
-                  const Divider(),
-                  buildServiceItem(
-                    icon: Icons.shopping_bag,
-                    title: "Package Delivery",
-                    description: "Deliver your packages with ease.",
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Navigate to Package Delivery"),
-                        ),
-                      );
-                    },
-                  ),
+                  // buildServiceItem(
+                  //   icon: Icons.local_taxi,
+                  //   title: "Ride Sharing",
+                  //   description: "Affordable rides for your daily commute.",
+                  //   onPressed: () {
+                  //     ScaffoldMessenger.of(context).showSnackBar(
+                  //       const SnackBar(
+                  //         content: Text("Navigate to Ride Sharing"),
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
+                  // const Divider(),
+                  // buildServiceItem(
+                  //   icon: Icons.shopping_bag,
+                  //   title: "Package Delivery",
+                  //   description: "Deliver your packages with ease.",
+                  //   onPressed: () {
+                  //     ScaffoldMessenger.of(context).showSnackBar(
+                  //       const SnackBar(
+                  //         content: Text("Navigate to Package Delivery"),
+                  //       ),
+                  //     );
+                  //   },
+                  // ),
                 ],
               ),
             ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../dbHelper/monggodb.dart';
+import 'edit_profile.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -92,15 +93,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
             ),
             const Divider(),
-
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Address'),
-              subtitle: Text(profileData!['address'] ?? 'N/A',
-                style: const TextStyle(fontSize: 20),),
-
-            ),
-            const Divider(),
             // Edit Button
             Center(
               child: ElevatedButton.icon(
@@ -108,7 +100,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const ProfilePage()), // Navigate to setup page
+                        builder: (context) => const EditProfilePage(profileData: {},)), // Navigate to setup page
                   );
                 },
                 icon: const Icon(Icons.edit),

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/signup/profilesetup.dart';
 import 'package:mongo_dart/mongo_dart.dart' as M;
+import 'package:http/http.dart' as http;
 
 import '../../dbHelper/monggodb.dart';
 import '../../dbHelper/MongoDBModeluser.dart';

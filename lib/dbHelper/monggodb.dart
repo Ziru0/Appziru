@@ -8,6 +8,8 @@ import 'constant.dart';
 class MongoDatabase {
   static var db, userCollection;
 
+  static get ridesCollection => null;
+
   // Connect to MongoDB
   static connect() async {
     try {
@@ -123,19 +125,34 @@ class MongoDatabase {
     return await userCollection.findOne(where.eq('firebaseId', firebaseId));
   }
 
-// Save request data into 'requests' collection
   static Future<void> saveRequest(Map<String, dynamic> requestData) async {
     var collection = db.collection('requests');
 
-    // Ensure the request has a 'status' and 'driverId'
-    requestData['status'] = 'pending'; // Default status when a ride is requested
-    requestData['driverId'] = null; // Initially no driver assigned
+    // Ensure the request has a 'status', but DO NOT overwrite driverId
+    requestData['status'] = 'pending';
+
+    print("🔥 Before Insert - Final Request Data: ${requestData}");
 
     await collection.insert(requestData);
   }
 
 
-
-
+  static Future<void> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
+    var collection = db.collection('users');
+    await collection.updateOne(
+      {'firebaseId': firebaseId},
+      {'\$set': updatedData},
+    );
+  }
+  
+  static Future<List<Map<String, dynamic>>> getRideHistory(String userId) async {
+    try {
+      var rides = await ridesCollection.find({'userId': userId}).toList();
+      return rides.map((ride) => Map<String, dynamic>.from(ride)).toList();
+    } catch (e) {
+      print("Error fetching ride history: $e");
+      return [];
+    }
+  }
 
 }

@@ -31,7 +31,7 @@ class PrivacyPolicyPage extends StatelessWidget {
               ),
               SizedBox(height: 16),
               Text(
-                "At [App Name], we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information. Please read it carefully.",
+                "At Omoda, we value your privacy and are committed to protecting your personal data. This Privacy Policy explains how we collect, use, and safeguard your information. Please read it carefully.",
                 style: TextStyle(fontSize: 16, color: Colors.black),
               ),
               SizedBox(height: 16),

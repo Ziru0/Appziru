@@ -4,12 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:lage/components/views/invites.dart';
-import 'package:lage/components/views/payment.dart';
-import 'package:lage/components/views/promo_codes.dart';
-import 'package:lage/components/views/ride_history.dart';
-import 'package:lage/components/views/settings.dart';
-import 'package:lage/components/views/support.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
@@ -116,7 +110,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
 
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
-    final url = 'https://api.openrouteservice.org/v2/directions/foot-walking';
+    final url = 'https://api.openrouteservice.org/v2/directions/driving-car';
 
     final body = {
       "coordinates": [
@@ -173,9 +167,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-
-
-  
   Future<void> saveRideRequest(
       MongoDbModelUser selectedDriver, double distance, double duration, double cost) async {
 
@@ -214,7 +205,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
   }
 
 
-  List<LatLng> decodePolyline(String encoded) {
+  List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
     int index = 0, len = encoded.length;
     int lat = 0, lng = 0;
@@ -277,27 +268,12 @@ class _HomeTabPageState extends State<HomeTabPage> {
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
 
-  MongoDbModelUser? selectedDriver;
+  MongoDbModelUser? selectedDriver; // ✅ Declare globally to persist selection
 
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      drawer: buildDrawer(userName: "Harold Andrei Ruiz", userImage: null), // Assign
-      appBar: AppBar(
-        title: Text(
-          "Home",
-          style: GoogleFonts.poppins(),
-        ),
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: Icon(Icons.menu),
-            onPressed: () {
-              Scaffold.of(context).openDrawer(); // Opens the drawer
-            },
-          ),
-        ),
-      ),
       body: Stack(
         children: [
           FlutterMap(
@@ -572,144 +548,107 @@ class _HomeTabPageState extends State<HomeTabPage> {
   }
 
 
-  buildDrawer({String? userName, String? userImage}) {
-    return Drawer(
-      child: ListView(
-        padding: EdgeInsets.zero,
-        children:
-        [
-          // Drawer Header
-          UserAccountsDrawerHeader(
-            currentAccountPicture: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: profileData?['profilePicture'] == null // Check if profile picture is null
-                    ? const DecorationImage(
-                  image: AssetImage('assets/person.png'), // Default image
-                  fit: BoxFit.fill,
-                )
-                    : DecorationImage(
-                  image: NetworkImage(profileData?['profilePicture']), // Dynamic profile picture
-                  fit: BoxFit.fill,
+  bool isAgreed = false; // Add state variable
+
+  Widget buildRideConfirmationSheet(double distance, double duration, double cost) {
+    return StatefulBuilder(
+      builder: (context, setState) => Container(
+        width: Get.width,
+        height: Get.height * 0.35, // Increased height for the agreement
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 50,
+                height: 8,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.grey,
                 ),
               ),
             ),
-            accountName: Text(
-              profileData?['fullname'] ?? "N/A", // Dynamic user full name or fallback
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
+            textWidget(text: 'Select a Driver:', fontSize: 18, fontWeight: FontWeight.bold),
+            SizedBox(height: 10),
+            buildDriversList(distance, duration, cost), // ✅ Pass the values
+            SizedBox(height: 10),
+            Divider(),
+            Row(
+              children: [
+                Checkbox(
+                  value: isAgreed,
+                  onChanged: (value) {
+                    setState(() {
+                      isAgreed = value!;
+                    });
+                  },
+                ),
+                Expanded(
+                  child: textWidget(
+                    text: 'I agree to the terms and conditions.',
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            Center(
+              child: MaterialButton(
+                onPressed: () {
+                  if (!isAgreed) {
+                    print("🚨 Please agree to the terms before confirming!");
+                    Get.snackbar(
+                      "Agreement Required",
+                      "Please agree to the terms before confirming.",
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                    return;
+                  }
+                  if (selectedDriver != null) {
+                    print("✅ Selected Driver: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                    saveRideRequest(selectedDriver!, distance, duration, cost);
+                    Get.back();
+
+                    // 🔹 Show Snackbar to notify passenger
+                    Get.snackbar(
+                      "Ride Request Sent",
+                      "Waiting for the driver's approval...",
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.blue,
+                      colorText: Colors.white,
+                      duration: Duration(seconds: 4),
+                    );
+                  } else {
+                    print("🚨 Please select a driver before confirming!");
+                    Get.snackbar(
+                      "No Driver Selected",
+                      "Please select a driver before confirming.",
+                      snackPosition: SnackPosition.BOTTOM,
+                      backgroundColor: Colors.red,
+                      colorText: Colors.white,
+                    );
+                  }
+                },
+                color: isAgreed ? Colors.blue : Colors.grey, // Disable button if not agreed
+                shape: StadiumBorder(),
+                child: textWidget(text: 'Confirm', color: Colors.white),
               ),
             ),
-            accountEmail: Text(
-              profileData?['email'] ?? "N/A", // Dynamic user email or fallback
-              style: GoogleFonts.poppins(),
-            ),
-            decoration: const BoxDecoration(
-              color: Color(0xFF181C14), // Drawer header background color
-            ),
-          ),
-
-
-          // Drawer Title
-          const Padding(
-            padding: EdgeInsets.all(16.0),
-            child: Text(
-              "Menu", // Title text
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-
-              ),
-            ),
-          ),
-
-          // Drawer Items
-          ListTile(
-            title: const Text('Payment History'),
-            onTap: () => Get.to(() => const PaymentScreen()),
-          ),
-          ListTile(
-            title: const Text('Ride History'),
-            onTap: ()  => Get.to(() => const RideHistoryScreen()),
-          ),
-          ListTile(
-            title: const Text('Invite Friends'),
-            onTap: ()  => Get.to(() => const InviteFriendsScreen()),
-          ),
-          ListTile(
-            title: const Text('Promo Codes'),
-            onTap: ()  => Get.to(() => const PromoCodePage()),
-          ),
-          ListTile(
-            title: const Text('Settings'),
-            onTap: ()  => Get.to(() => const SettingsPage()),
-          ),
-          ListTile(
-            title: const Text('Support'),
-            onTap: ()  => Get.to(() => const SupportPage()),
-          ),
-          ListTile(
-            title: const Text('Log Out'),
-            onTap: () {
-              FirebaseAuth.instance.signOut();
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget buildRideConfirmationSheet(double distance, double duration, double cost) {
-    return Container(
-      width: Get.width,
-      height: Get.height * 0.3,
-      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 50,
-              height: 8,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          textWidget(text: 'Select a Driver:', fontSize: 18, fontWeight: FontWeight.bold),
-          SizedBox(height: 10),
-          buildDriversList(distance, duration, cost), // ✅ Pass the values
-          SizedBox(height: 20),
-          Divider(),
-          Center(
-            child: MaterialButton(
-              onPressed: () {
-                if (selectedDriver != null) {
-                  saveRideRequest(selectedDriver!, distance, duration, cost);
-                  Get.back(); // Close the bottom sheet
-                  print("✅ Ride request confirmed with ${selectedDriver!.fullname}!");
-                } else {
-                  print("🚨 Please select a driver before confirming!");
-                }
-              },
-              color: Colors.blue,
-              shape: StadiumBorder(),
-              child: textWidget(text: 'Confirm', color: Colors.white),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  int selectedRide = -1;
+  int selectedRide = 0;
 
   Widget buildDriversList(double distance, double duration, double cost) {
     return FutureBuilder<List<Map<String, dynamic>>>(
@@ -745,12 +684,13 @@ class _HomeTabPageState extends State<HomeTabPage> {
                 itemBuilder: (ctx, i) {
                   var driver = filteredUsers[i];
                   return InkWell(
-                      onTap: () {
-                        setState(() {
-                          selectedRide = i;
-                          selectedDriver = filteredUsers[i]; // ✅ Store the selected driver
-                        });
-                      },
+                    onTap: () {
+                      setState(() {
+                        selectedRide = i;
+                        selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
+                        print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                      });
+                    },
 
                       child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
                   );
