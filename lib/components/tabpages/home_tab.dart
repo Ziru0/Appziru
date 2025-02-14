@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -59,6 +60,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
     super.initState();
     mapController = MapController();
     _fetchProfileData();
+    _fetchPassengerId();
   }
 
   Future<List<String>> fetchPlaceSuggestions(String query) async {
@@ -204,6 +206,35 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
+  String? passengerId;
+
+  void _fetchPassengerId() {
+    setState(() {
+      passengerId = profileData?['_id']?.toString(); // ✅ Ensure passengerId is set
+    });
+
+    if (passengerId != null) {
+      _startListeningForRideUpdates();
+    }
+  }
+
+  StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
+
+  void _startListeningForRideUpdates() async {
+    var collection = MongoDatabase.db.collection('requests');
+
+    Timer.periodic(Duration(seconds: 2), (timer) async {
+      if (passengerId == null) return;
+
+      var result = await collection.findOne(
+        mongo.where.eq('passengerId', passengerId), // ✅ Listen for this passenger's ride
+      );
+
+      _rideStreamController.add(result); // ✅ Push data to stream
+    });
+  }
+
+  Stream<Map<String, dynamic>?> get rideUpdates => _rideStreamController.stream;
 
   List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
@@ -270,48 +301,130 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   MongoDbModelUser? selectedDriver; // ✅ Declare globally to persist selection
 
+  Map<String, dynamic>? acceptedRequest;
+
+
+  void _cancelRide() async {
+    if (acceptedRequest == null) return;
+
+    var collection = MongoDatabase.db.collection('requests');
+    await collection.updateOne(
+      mongo.where.eq('_id', acceptedRequest!['_id'] as mongo.ObjectId),
+      mongo.modify.set('status', 'canceled'),
+    );
+
+    setState(() {
+      acceptedRequest = null;
+      passengerId = null; // ✅ Reset passenger ID
+      polylinePoints.clear(); // ✅ Clear polyline on cancel
+    });
+
+    _rideStreamController.add(null); // ✅ Clear stream
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          FlutterMap(
-            mapController: mapController,
-            options: MapOptions(
-              initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
-              initialZoom: 15,
+    Widget build(BuildContext context) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            FlutterMap(
+              mapController: mapController,
+              options: MapOptions(
+                initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
+                initialZoom: 15,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                  subdomains: ['a', 'b', 'c'],
+                ),
+                PolylineLayer(
+                  polylines: [
+                    Polyline(
+                      points: polylinePoints, // Use the polyline points here
+                      color: Colors.blue,
+                      strokeWidth: 4.0,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: markers.toList(),
+                ),
+              ],
             ),
-            children: [
-              TileLayer(
-                urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-                subdomains: ['a', 'b', 'c'],
+            buildProfileTile(
+              name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
+              imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
+            ),
+            buildTextField(),
+            buildTextFieldForSource(), // Ensure this is displayed correctly
+            buildCurrentLocationIcon(),
+            _buildWaitingForPassengerWidget(),
+          ],
+        ),
+      );
+    }
+
+  Widget _buildWaitingForPassengerWidget() {
+    return StreamBuilder<Map<String, dynamic>?>(
+      stream: rideUpdates,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data == null) {
+          return SizedBox(); // ✅ Hide widget if there's no active ride request
+        }
+
+        var ride = snapshot.data!;
+        String status = ride['status'] ?? '';
+
+        if (status.isEmpty) {
+          return SizedBox(); // ✅ Hide widget if no status is available
+        }
+
+        if (status == 'accepted') {
+          return Positioned(
+            bottom: 20,
+            left: 20,
+            right: 20,
+            child: Card(
+              elevation: 5,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Driver is on the way!",
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 8),
+                    Text("Driver: ${ride['driverName'] ?? 'Unknown'}"),
+                    Text("ETA: ${ride['estimatedTime'] ?? 'N/A'} mins"),
+                    SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton(
+                          onPressed: _cancelRide,
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                          child: Text("Cancel Ride"),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: polylinePoints, // Use the polyline points here
-                    color: Colors.blue,
-                    strokeWidth: 4.0,
-                  ),
-                ],
-              ),
-              MarkerLayer(
-                markers: markers.toList(),
-              ),
-            ],
-          ),
-          buildProfileTile(
-            name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
-            imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
-          ),
-          buildTextField(),
-          buildTextFieldForSource(), // Ensure this is displayed correctly
-          buildCurrentLocationIcon(),
-        ],
-      ),
+            ),
+          );
+        }
+
+        return SizedBox(); // ✅ Hide widget if the request is not accepted
+      },
     );
   }
+
+
+
 
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
     return Positioned(

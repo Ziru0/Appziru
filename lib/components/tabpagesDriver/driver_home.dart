@@ -221,6 +221,23 @@ class _DriverHomePageState extends State<DriverHomePage> {
         mongo.modify.set('isAvailable', isAvailable));
   }
 
+  void _completeRide(String status) async {
+    if (acceptedRequest == null) return;
+
+    var collection = MongoDatabase.db.collection('requests');
+    await collection.updateOne(
+      mongo.where.eq('_id', acceptedRequest!['_id'] as mongo.ObjectId),
+      mongo.modify.set('status', status),
+    );
+
+    setState(() {
+      acceptedRequest = null;
+      polylinePoints.clear(); // Clear polyline after completion
+    });
+  }
+
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -249,6 +266,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
             imageUrl: profileData?['profilePicture'],
           ),
           _buildRideRequestWidget(),
+          _buildAcceptedRideWidget(), // ✅ Add this widget
+
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -258,6 +277,8 @@ class _DriverHomePageState extends State<DriverHomePage> {
       ),
     );
   }
+
+
 
   Widget _buildRideRequestWidget() {
     if (rideRequests.isEmpty) return SizedBox();
@@ -297,6 +318,53 @@ class _DriverHomePageState extends State<DriverHomePage> {
       ),
     );
   }
+
+  Widget _buildAcceptedRideWidget() {
+    if (acceptedRequest == null) return SizedBox();
+
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Card(
+        elevation: 5,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ride Details',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text('Passenger: ${acceptedRequest?['fullname'] ?? 'N/A'}'),
+              Text('Distance: ${acceptedRequest?['distance']} km'),
+              Text('Estimated Time: ${acceptedRequest?['estimatedTime']} mins'),
+              Text('Cost: PHP ${acceptedRequest?['cost']}'),
+              SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: () => _completeRide('done'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    child: Text("Done"),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => _completeRide('failed'),
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    child: Text("Failed"),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
 
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
     return Positioned(
