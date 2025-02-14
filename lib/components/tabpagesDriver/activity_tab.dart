@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../../dbHelper/monggodb.dart';
 
 class ActivityTabPage extends StatefulWidget {
-  const ActivityTabPage({Key? key}) : super(key: key);
+  const ActivityTabPage({super.key});
 
   @override
   State<ActivityTabPage> createState() => _ActivityTabPageState();
@@ -35,7 +35,6 @@ class _ActivityTabPageState extends State<ActivityTabPage> {
         });
       }
     } catch (e) {
-      print("Error fetching ride history: $e");
       setState(() => _isLoading = false);
     }
   }

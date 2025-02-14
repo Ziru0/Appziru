@@ -107,7 +107,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Future<void> fetchRoute() async {
     if (startCoordinates == null || endCoordinates == null) {
-      print('🚨 Start or end coordinates are null!');
       return;
     }
 
@@ -153,7 +152,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
         // 🔹 Show confirmation inside `setState()` after a delay
         Future.delayed(Duration(seconds: 5), () {
-          print("🚀 Showing Ride Confirmation Sheet...");
           if (mounted) {
             Get.bottomSheet(
                 buildRideConfirmationSheet(distance, duration, cost)
@@ -218,7 +216,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-  StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
+  final StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
 
   void _startListeningForRideUpdates() async {
     var collection = MongoDatabase.db.collection('requests');
@@ -724,7 +722,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                     return;
                   }
                   if (selectedDriver != null) {
-                    print("✅ Selected Driver: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                    // print("✅ Selected Driver: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
                     saveRideRequest(selectedDriver!, distance, duration, cost);
                     Get.back();
 
@@ -783,7 +781,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
             .toList();
 
         // Debugging: Print the fetched users list
-        print("Fetched users: ${filteredUsers.length}");
+        // print("Fetched users: ${filteredUsers.length}");
 
         return SizedBox(
           height: 100,
@@ -799,7 +797,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                       setState(() {
                         selectedRide = i;
                         selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
-                        print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                        // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
                       });
                     },
 
@@ -822,8 +820,9 @@ class _HomeTabPageState extends State<HomeTabPage> {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: selected ? Color(0xff2DBB54).withOpacity(0.2) : Colors.grey.withOpacity(0.2),
-            offset: Offset(0, 5),
+            color: selected
+                ? const Color(0xff2DBB54).withAlpha((0.2 * 255).toInt())
+                : Colors.grey.withAlpha((0.2 * 255).toInt()),            offset: Offset(0, 5),
             blurRadius: 5,
             spreadRadius: 1,
           ),
@@ -837,7 +836,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             textWidget(
-              text: '${user.fullname ?? "No Name"}',  // Display the driver's name directly
+              text: user.fullname ?? "No Name",  // Display the driver's name directly
               color: Colors.white,
               fontWeight: FontWeight.w700,
             ),
@@ -848,12 +847,12 @@ class _HomeTabPageState extends State<HomeTabPage> {
             ),
             textWidget(
               text: 'ETA: ${duration.toStringAsFixed(2)} MIN',  // Estimated time of arrival
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withAlpha((0.8 * 255).toInt()),  // Adjust alpha for opacity
               fontSize: 12,
             ),
             textWidget(
               text: 'Distance: ${distance.toStringAsFixed(2)} km',  // Distance
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withAlpha((0.8 * 255).toInt()),  // Adjust alpha for opacity
               fontSize: 12,
             ),
           ],

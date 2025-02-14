@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lage/components/signup/profilesetup.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
 import 'package:lage/components/tabpages/profilepages/edit_profile.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
@@ -39,7 +38,6 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
         });
       }
     } catch (e) {
-      print('Error fetching profile data: $e');
     }
   }
 

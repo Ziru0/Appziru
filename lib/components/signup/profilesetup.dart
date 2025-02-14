@@ -142,7 +142,6 @@ class _ProfilesetupState extends State<Profilesetup> {
       updatedData["passengerId"] = objectId; // Use ObjectId instead of Firebase ID
     }
 
-    var result = await MongoDatabase.updateOne(firebaseId, fName, address, number, updatedData);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Updated profile for: $firebaseId")),

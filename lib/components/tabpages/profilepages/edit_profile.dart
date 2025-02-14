@@ -4,7 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../dbHelper/monggodb.dart';
-import '../../dbHelper/monggodb.dart';
 import 'package:http/http.dart' as http;
 
 import '../../wrapper.dart';
@@ -55,9 +54,7 @@ class _EditProfileState extends State<EditProfile> {
         setState(() {
           _profileImage = imageFile;
         });
-        print("Image Uploaded: $imageUrl");
       } else {
-        print("Upload failed");
       }
     }
   }

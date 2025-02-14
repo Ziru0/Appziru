@@ -14,10 +14,10 @@ class DriverHomePage extends StatefulWidget {
   const DriverHomePage({super.key});
 
   @override
-  _DriverHomePageState createState() => _DriverHomePageState();
+  DriverHomePageState createState() => DriverHomePageState();
 }
 
-class _DriverHomePageState extends State<DriverHomePage> {
+class DriverHomePageState extends State<DriverHomePage> {
   Map<String, dynamic>? profileData;
   late MapController mapController;
   List<LatLng> polylinePoints = [];

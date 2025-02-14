@@ -1,5 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:get/get.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
 import 'MongoDBModeluser.dart';
@@ -15,10 +13,10 @@ class MongoDatabase {
     try {
       db = await Db.create(MONGO_CONN_URL);
       await db.open();
-      print("✅ MongoDB Connected Successfully");
+      // print("✅ MongoDB Connected Successfully");
       userCollection = db.collection(PROFILE_COLLECTION);
     } catch (e) {
-      print("❌ MongoDB Connection Error: $e");
+      // print("❌ MongoDB Connection Error: $e");
     }
   }
 
@@ -30,11 +28,11 @@ class MongoDatabase {
       if (userData != null) {
         return MongoDbModelUser.fromJson(userData);
       } else {
-        print("🚨 User not found in the database!");
+        // print("🚨 User not found in the database!");
         return null;
       }
     } catch (e) {
-      print("❌ Error fetching user: $e");
+      // print("❌ Error fetching user: $e");
       return null;
     }
   }
@@ -56,7 +54,7 @@ class MongoDatabase {
         return "Something wrong";
       }
     } catch (e) {
-      print(e.toString());
+      // print(e.toString());
       return e.toString();
     }
   }
@@ -88,7 +86,7 @@ class MongoDatabase {
         return "Failed to Update Document";
       }
     } catch (e) {
-      print(e.toString());
+      // print(e.toString());
       return e.toString();
     }
   }
@@ -104,7 +102,7 @@ class MongoDatabase {
     // Ensure the request has a 'status', but DO NOT overwrite driverId
     requestData['status'] = 'pending';
 
-    print("🔥 Before Insert - Final Request Data: ${requestData}");
+    // print("🔥 Before Insert - Final Request Data: $requestData");
 
     await collection.insert(requestData);
   }
@@ -113,8 +111,8 @@ class MongoDatabase {
   static Future<void> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
     var collection = db.collection('users');
 
-    print("🔍 Updating profile for FirebaseID: $firebaseId");
-    print("📌 Updated Data: $updatedData");
+    // print("🔍 Updating profile for FirebaseID: $firebaseId");
+    // print("📌 Updated Data: $updatedData");
 
     var result = await collection.updateOne(
       {'firebaseId': firebaseId},
@@ -122,9 +120,9 @@ class MongoDatabase {
     );
 
     if (result.isSuccess) {
-      print("✅ Profile updated successfully!");
+      // print("✅ Profile updated successfully!");
     } else {
-      print("❌ Failed to update profile");
+      // print("❌ Failed to update profile");
     }
   }
 
@@ -134,7 +132,7 @@ class MongoDatabase {
       var rides = await ridesCollection.find({'userId': userId}).toList();
       return rides.map((ride) => Map<String, dynamic>.from(ride)).toList();
     } catch (e) {
-      print("Error fetching ride history: $e");
+      // print("Error fetching ride history: $e");
       return [];
     }
   }
