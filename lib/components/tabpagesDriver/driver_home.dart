@@ -347,7 +347,7 @@ class DriverHomePageState extends State<DriverHomePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    onPressed: () => _completeRide('done'),
+                    onPressed: () => _completeRide('completed'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: Text("Done"),
                   ),

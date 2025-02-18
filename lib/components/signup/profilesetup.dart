@@ -117,12 +117,29 @@ class _ProfilesetupState extends State<Profilesetup> {
 
   Future<void> _insertData(
       String firebaseId, String fName, String number, String address, String role, String? imageUrl) async {
-    // Fetch the user's MongoDB document to get the ObjectId
+
     var userData = await MongoDatabase.getOne(firebaseId);
+
+    if (userData == null) {
+      // If the user doesn't exist, insert a new one
+      var newUser = {
+        "firebaseId": firebaseId,
+        "fullname": fName,
+        "number": number,
+        "address": address,
+        "role": role,
+        "profileImage": imageUrl,
+        "driverId": null,
+        "passengerId": null,
+      };
+
+      await MongoDatabase.insertUser(newUser);  // Call insert function
+      userData = await MongoDatabase.getOne(firebaseId); // Fetch user again
+    }
 
     if (userData == null || !userData.containsKey('_id')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Error: User not found in database.")),
+        const SnackBar(content: Text("Error: User not found in database after insert.")),
       );
       return;
     }
@@ -132,19 +149,20 @@ class _ProfilesetupState extends State<Profilesetup> {
     Map<String, dynamic> updatedData = {
       "role": role,
       "profileImage": imageUrl,
-      "driverId": null, // Clear if not applicable
-      "passengerId": null, // Clear if not applicable
+      "driverId": null,
+      "passengerId": null,
     };
 
     if (role == "Driver") {
-      updatedData["driverId"] = objectId; // Use ObjectId instead of Firebase ID
+      updatedData["driverId"] = objectId;
     } else if (role == "Passenger") {
-      updatedData["passengerId"] = objectId; // Use ObjectId instead of Firebase ID
+      updatedData["passengerId"] = objectId;
     }
 
+    await MongoDatabase.updateOne(firebaseId, fName, address, number, updatedData);
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Updated profile for: $firebaseId")),
+      SnackBar(content: Text("Profile updated successfully")),
     );
 
     _clearAll();

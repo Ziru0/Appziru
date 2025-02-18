@@ -28,23 +28,19 @@ class SignupPageState extends State<SignupPage> {
           email: email.text.trim(),
           password: password.text.trim(),
         );
-        // Log the entire backFire object
-        print('backFire: $backFire'); // This will log the userCredential object
-        /**
-         * @Todo Start
-         */
-        var _id = M.ObjectId();
-        final data = MongoDbModelUser(
-          id: _id,
-          email: email.text.trim(),
-            firebaseId: backFire.user?.uid,
-        );
-        var result = await MongoDatabase.insertUser(data);
-        /**
-         * @Todo End
-         */
+        print('backFire: $backFire');
 
-        // Navigate to the HomePage after successful registration
+        // Create MongoDB document as a Map
+        var _id = M.ObjectId();
+        final Map<String, dynamic> data = {
+          "_id": _id,
+          "email": email.text.trim(),
+          "firebaseId": backFire.user?.uid,
+        };
+
+        var result = await MongoDatabase.insertUser(data); // Now data is a Map
+
+        // Navigate to Profile Setup after successful registration
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => Profilesetup()),
@@ -60,6 +56,7 @@ class SignupPageState extends State<SignupPage> {
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

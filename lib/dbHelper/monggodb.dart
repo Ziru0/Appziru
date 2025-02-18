@@ -1,4 +1,5 @@
 import 'package:mongo_dart/mongo_dart.dart';
+import 'package:mongo_dart/mongo_dart.dart' as mongo;
 
 import 'MongoDBModeluser.dart';
 import 'constant.dart';
@@ -43,19 +44,17 @@ class MongoDatabase {
     final arrData = await userCollection.find().toList();
     return arrData;
   }
-  
-  // Insert user data
-  static Future<String> insertUser(MongoDbModelUser data) async {
+
+  static Future<String> insertUser(Map<String, dynamic> data) async {
     try {
-      var result2 = await userCollection.insertOne(data.toJson());
-      if (result2.isSuccess) {
-        return "Data Inserted";
+      var result = await userCollection.insertOne(data);
+      if (result.isSuccess) {
+        return "User Inserted Successfully";
       } else {
-        return "Something wrong";
+        return "Failed to Insert User";
       }
     } catch (e) {
-      // print(e.toString());
-      return e.toString();
+      return "MongoDB Insert Error: $e";
     }
   }
 
@@ -108,31 +107,55 @@ class MongoDatabase {
   }
 
 
-  static Future<void> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
+  static Future<bool> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
     var collection = db.collection('users');
 
-    // print("🔍 Updating profile for FirebaseID: $firebaseId");
-    // print("📌 Updated Data: $updatedData");
+    // ✅ DEBUG: Print all users in DB to check if the firebaseId exists
+    var allUsers = await collection.find().toList();
+    print("📝 All Users in Database: $allUsers");
+
+    // ✅ DEBUG: Try to find user with given firebaseId
+    var existingUser = await collection.findOne(where.eq("firebaseId", firebaseId));
+    print("🔍 Searching for User with firebaseId: $firebaseId");
+    print("🔍 Existing User: $existingUser");
+
+    if (existingUser == null) {
+      print("❌ User not found! Check if firebaseId is correct.");
+      return false;
+    }
+
+    print("✅ User found! Proceeding with update...");
+
+    // Ensure the update contains a timestamp
+    updatedData["lastUpdated"] = DateTime.now().toUtc().toString();
 
     var result = await collection.updateOne(
-      {'firebaseId': firebaseId},
-      {'\$set': updatedData},
+      where.eq("firebaseId", firebaseId),
+      modify.set("fullname", updatedData["fullname"] ?? existingUser["fullname"])
+          .set("number", updatedData["number"] ?? existingUser["number"])
+          .set("address", updatedData["address"] ?? existingUser["address"])
+          .set("lastUpdated", updatedData["lastUpdated"]),
+      upsert: false, // Don't insert a new document if not found
     );
 
-    if (result.isSuccess) {
-      // print("✅ Profile updated successfully!");
+    if (result.isSuccess && result.nModified > 0) {
+      print("✅ Profile updated successfully");
+      return true;
+    } else if (result.isSuccess && result.nMatched > 0) {
+      print("⚠️ No new changes detected, but the document exists.");
+      return false;
     } else {
-      // print("❌ Failed to update profile");
+      print("❌ Profile update failed! No matching document.");
+      return false;
     }
   }
 
-  
-  static Future<List<Map<String, dynamic>>> getRideHistory(String userId) async {
+
+  static Future<List<Map<String, dynamic>>> getCompletedRideHistory(String userId) async {
     try {
-      var rides = await ridesCollection.find({'userId': userId}).toList();
+      var rides = await userCollection.find({'passengerId': userId, 'status': 'completed'}).toList();
       return rides.map((ride) => Map<String, dynamic>.from(ride)).toList();
     } catch (e) {
-      // print("Error fetching ride history: $e");
       return [];
     }
   }

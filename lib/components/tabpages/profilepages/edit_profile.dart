@@ -37,9 +37,6 @@ class _EditProfileState extends State<EditProfile> {
           fnameController.text = userData.fullname ?? "";
           numberController.text = userData.number ?? "";
           addressController.text = userData.address ?? "";
-          if (userData.profileImage != null) {
-            _profileImage = File(userData.profileImage!);
-          }
         });
       }
     }
@@ -49,13 +46,9 @@ class _EditProfileState extends State<EditProfile> {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       File imageFile = File(pickedFile.path);
-      String? imageUrl = await uploadImageToCloudinary(imageFile);
-      if (imageUrl != null) {
-        setState(() {
-          _profileImage = imageFile;
-        });
-      } else {
-      }
+      setState(() {
+        _profileImage = imageFile;
+      });
     }
   }
 
@@ -92,8 +85,6 @@ class _EditProfileState extends State<EditProfile> {
 
       String firebaseId = user.uid;
       String? imageUrl;
-
-      // Define updatedData first
       Map<String, dynamic> updatedData = {
         "fullname": fnameController.text,
         "number": numberController.text,
@@ -107,16 +98,29 @@ class _EditProfileState extends State<EditProfile> {
         }
       }
 
-      await MongoDatabase.updateProfile(firebaseId, updatedData);
-      await _loadUserData(); // Reload user data after update
+      print("🔥 Updating Profile for: $firebaseId");
+      print("📝 Updated Data: $updatedData");
 
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const Wrapper()),
+      bool success = await MongoDatabase.updateProfile(firebaseId, updatedData);
+
+      if (success) {
+        print("✅ Profile Updated Successfully");
+        await _loadUserData();
+
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const Wrapper()),
+          );
+        }
+      } else {
+        print("❌ Profile Update Failed!");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Failed to update profile.")),
         );
       }
     } catch (e) {
+      print("❌ Update Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );

@@ -27,7 +27,7 @@ class _ActivityTabPageState extends State<ActivityTabPage> {
         String userId = user.uid;
 
         // Fetch ride history from MongoDB
-        var data = await MongoDatabase.getRideHistory(userId);
+        var data = await MongoDatabase.getCompletedRideHistory(userId);
 
         setState(() {
           rideHistory = List<Map<String, dynamic>>.from(data);
