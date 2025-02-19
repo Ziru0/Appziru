@@ -3,10 +3,9 @@ import 'dart:io';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../dbHelper/monggodb.dart';
+import '../../dbHelper/mongodb.dart';
+import '../wrapper.dart';
 import 'package:http/http.dart' as http;
-
-import '../../wrapper.dart';
 
 class EditProfile extends StatefulWidget {
   const EditProfile({super.key});
@@ -19,7 +18,9 @@ class _EditProfileState extends State<EditProfile> {
   var fnameController = TextEditingController();
   var numberController = TextEditingController();
   var addressController = TextEditingController();
+  final List<String> roles = ['Driver', 'Passenger'];
   File? _profileImage;
+  String? imageUrl;
   final ImagePicker _picker = ImagePicker();
 
   @override
@@ -30,15 +31,16 @@ class _EditProfileState extends State<EditProfile> {
 
   Future<void> _loadUserData() async {
     var user = FirebaseAuth.instance.currentUser;
-    if (user != null) {
-      var userData = await MongoDatabase.getUser(user.uid);
-      if (userData != null) {
-        setState(() {
-          fnameController.text = userData.fullname ?? "";
-          numberController.text = userData.number ?? "";
-          addressController.text = userData.address ?? "";
-        });
-      }
+    if (user == null) return;
+
+    var userData = await MongoDatabase.getOne(user.uid);
+    if (userData != null) {
+      setState(() {
+        fnameController.text = userData['fullname'] ?? '';
+        numberController.text = userData['number'] ?? '';
+        addressController.text = userData['address'] ?? '';
+        imageUrl = userData['profileImage'];
+      });
     }
   }
 
@@ -46,17 +48,21 @@ class _EditProfileState extends State<EditProfile> {
     final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
     if (pickedFile != null) {
       File imageFile = File(pickedFile.path);
-      setState(() {
-        _profileImage = imageFile;
-      });
+      String? uploadedUrl = await uploadImageToCloudinary(imageFile);
+      if (uploadedUrl != null) {
+        setState(() {
+          _profileImage = imageFile;
+          imageUrl = uploadedUrl;
+        });
+      }
     }
   }
 
   Future<String?> uploadImageToCloudinary(File imageFile) async {
     String cloudName = "dpiqvnwpk";
     String uploadPreset = "fgf2cwjh";
-
     var url = Uri.parse("https://api.cloudinary.com/v1_1/$cloudName/image/upload");
+
     var request = http.MultipartRequest("POST", url)
       ..fields['upload_preset'] = uploadPreset
       ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
@@ -76,51 +82,29 @@ class _EditProfileState extends State<EditProfile> {
   Future<void> _updateProfile() async {
     try {
       var user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("User not logged in.")),
-        );
-        return;
+      if (user == null) return;
+
+      String? imageUrl;
+      if (_profileImage != null) {
+        imageUrl = await uploadImageToCloudinary(_profileImage!);
       }
 
-      String firebaseId = user.uid;
-      String? imageUrl;
-      Map<String, dynamic> updatedData = {
+      var updatedData = {
         "fullname": fnameController.text,
         "number": numberController.text,
         "address": addressController.text,
+        "profileImage": imageUrl ?? "", // Avoid null value
       };
 
-      if (_profileImage != null) {
-        imageUrl = await uploadImageToCloudinary(_profileImage!);
-        if (imageUrl != null) {
-          updatedData["profileImage"] = imageUrl;
-        }
-      }
-
-      print("🔥 Updating Profile for: $firebaseId");
-      print("📝 Updated Data: $updatedData");
-
-      bool success = await MongoDatabase.updateProfile(firebaseId, updatedData);
-
-      if (success) {
-        print("✅ Profile Updated Successfully");
-        await _loadUserData();
-
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const Wrapper()),
-          );
-        }
-      } else {
-        print("❌ Profile Update Failed!");
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Failed to update profile.")),
-        );
-      }
+      await MongoDatabase.updateUser(user.uid, updatedData);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Profile updated successfully")),
+      );
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const Wrapper()),
+      );
     } catch (e) {
-      print("❌ Update Error: $e");
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error: $e")),
       );
@@ -131,10 +115,7 @@ class _EditProfileState extends State<EditProfile> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Profile'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Edit Profile'), centerTitle: true),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16.0),
@@ -150,13 +131,9 @@ class _EditProfileState extends State<EditProfile> {
                         radius: 60,
                         backgroundImage: _profileImage != null
                             ? FileImage(_profileImage!)
-                            : null,
-                        child: _profileImage == null
-                            ? const Icon(
-                          Icons.person,
-                          size: 60,
-                          color: Colors.grey,
-                        )
+                            : (imageUrl != null ? NetworkImage(imageUrl!) : null) as ImageProvider?,
+                        child: _profileImage == null && imageUrl == null
+                            ? const Icon(Icons.person, size: 60, color: Colors.grey)
                             : null,
                       ),
                     ),
@@ -164,7 +141,7 @@ class _EditProfileState extends State<EditProfile> {
                     TextButton.icon(
                       onPressed: _pickImage,
                       icon: const Icon(Icons.upload),
-                      label: const Text('Upload Picture'),
+                      label: const Text('Change Picture'),
                     ),
                   ],
                 ),
@@ -198,16 +175,14 @@ class _EditProfileState extends State<EditProfile> {
                 ),
               ),
               const SizedBox(height: 20),
+
               Center(
                 child: ElevatedButton.icon(
                   onPressed: _updateProfile,
                   icon: const Icon(Icons.save),
                   label: const Text("Save Changes"),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                     textStyle: const TextStyle(fontSize: 18),
                   ),
                 ),

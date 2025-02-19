@@ -3,11 +3,11 @@ import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
-import 'package:lage/components/tabpages/profilepages/edit_profile.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
 import 'package:lage/components/tabpages/profilepages/notifications.dart';
 
-import '../../dbHelper/monggodb.dart';
+import '../../dbHelper/mongodb.dart';
+import '../signup/editprofile.dart';
 import '../signup/login_page.dart';
 
 class ProfileTabPage extends StatefulWidget {

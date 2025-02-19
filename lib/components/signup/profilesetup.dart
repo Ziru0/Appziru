@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mongo_dart/mongo_dart.dart' as mongo;
-import '../../dbHelper/monggodb.dart';
+import '../../dbHelper/mongodb.dart';
 import '../wrapper.dart';  // Import your Wrapper page here
 import 'package:http/http.dart' as http;
 
@@ -20,6 +20,7 @@ class _ProfilesetupState extends State<Profilesetup> {
   var fnameController = TextEditingController();
   var numberController = TextEditingController();
   var addressController = TextEditingController();
+  var carInfoController = TextEditingController(); // Added controller for car info
   String? selectedRole; // Variable to store the selected role
   final List<String> roles = ['Driver', 'Passenger']; // Available roles
   File? _profileImage;
@@ -85,12 +86,24 @@ class _ProfilesetupState extends State<Profilesetup> {
       }
 
       String firebaseId = user.uid;
+      String? carInfo; // Variable to store car info
 
       // Upload image before inserting data
       String? imageUrl;
       if (_profileImage != null) {
         imageUrl = await uploadImageToCloudinary(_profileImage!);
       }
+
+      if (selectedRole == 'Driver') {
+        carInfo = carInfoController.text;
+        if (carInfo.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Car information is required for drivers.")),
+          );
+          return;
+        }
+      }
+
 
       await _insertData(
         firebaseId,
@@ -99,6 +112,7 @@ class _ProfilesetupState extends State<Profilesetup> {
         addressController.text,
         selectedRole!,
         imageUrl, // Pass uploaded image URL
+        carInfo, // Pass car info, can be null if not driver
       );
 
       if (mounted) {
@@ -116,7 +130,7 @@ class _ProfilesetupState extends State<Profilesetup> {
 
 
   Future<void> _insertData(
-      String firebaseId, String fName, String number, String address, String role, String? imageUrl) async {
+      String firebaseId, String fName, String number, String address, String role, String? imageUrl, String? carInfo) async {
 
     var userData = await MongoDatabase.getOne(firebaseId);
 
@@ -155,6 +169,13 @@ class _ProfilesetupState extends State<Profilesetup> {
 
     if (role == "Driver") {
       updatedData["driverId"] = objectId;
+      // Insert car info into a new collection
+      var driverInfo = {
+        "firebaseId": firebaseId,
+        "carInfo": carInfo,
+        "userId": objectId, // Link to the user document
+      };
+      await MongoDatabase.insertDriver(driverInfo); // Assume this function exists in MongoDatabase
     } else if (role == "Passenger") {
       updatedData["passengerId"] = objectId;
     }
@@ -177,6 +198,7 @@ class _ProfilesetupState extends State<Profilesetup> {
     numberController.text = "";
     addressController.text = "";
     selectedRole = null;
+    carInfoController.text = ""; // Clear car info controller
   }
 
   @override
@@ -271,6 +293,19 @@ class _ProfilesetupState extends State<Profilesetup> {
                   prefixIcon: Icon(Icons.person_outline),
                 ),
               ),
+              // Car Information Field - Conditionally Rendered
+              if (selectedRole == 'Driver')
+                Padding(
+                  padding: const EdgeInsets.only(top: 20.0),
+                  child: TextField(
+                    controller: carInfoController,
+                    decoration: const InputDecoration(
+                      labelText: "Car Information",
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.directions_car),
+                    ),
+                  ),
+                ),
               const SizedBox(height: 30),
               // Button to complete profile setup
               Center(

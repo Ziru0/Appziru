@@ -4,7 +4,7 @@ import 'package:lage/components/signup/profilesetup.dart';
 import 'package:mongo_dart/mongo_dart.dart' as M;
 import 'package:http/http.dart' as http;
 
-import '../../dbHelper/monggodb.dart';
+import '../../dbHelper/mongodb.dart';
 import '../../dbHelper/MongoDBModeluser.dart';
 
 class SignupPage extends StatefulWidget {

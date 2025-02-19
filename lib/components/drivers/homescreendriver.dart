@@ -42,7 +42,7 @@ class _State extends State<HomeScreenDriver> with SingleTickerProviderStateMixin
         children: const [
           DriverHomePage(),
           ServicesTabPage(),
-          ActivityTabPage(),
+          RideActivityPage(),
           ProfileTabPage(),
         ],
       ),

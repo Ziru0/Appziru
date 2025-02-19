@@ -3,14 +3,14 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../dbHelper/mongodb.dart';
 
-class RideActivityPage extends StatefulWidget {
-  const RideActivityPage({super.key});
+class DriverActivityPage extends StatefulWidget {
+  const DriverActivityPage({super.key});
 
   @override
-  State<RideActivityPage> createState() => _RideActivityPageState();
+  State<DriverActivityPage> createState() => _DriverActivityPageState();
 }
 
-class _RideActivityPageState extends State<RideActivityPage> {
+class _DriverActivityPageState extends State<DriverActivityPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> rideHistory = [];
   Map<String, dynamic>? profileData;
@@ -19,36 +19,33 @@ class _RideActivityPageState extends State<RideActivityPage> {
   @override
   void initState() {
     super.initState();
-    fetchRideHistory();
+    fetchDriverHistory();
     _fetchProfileData();
 
   }
 
-  Future<void> fetchRideHistory() async {
+
+
+// In your DriverActivityPage:
+  Future<void> fetchDriverHistory() async {
     try {
-      String? passengerId = FirebaseAuth.instance.currentUser?.uid;
-      if (passengerId == null) {
-        // print("❌ No logged-in user.");
+      String? driverId = FirebaseAuth.instance.currentUser?.uid; // Firebase UID
+      if (driverId == null) {
         setState(() => _isLoading = false);
         return;
       }
-
-      // print("🔍 Fetching ride history for passenger ID: $passengerId");
-
-      // Fetch the ride history directly
-      List<Map<String, dynamic>> rides = await MongoDatabase.getPassengerRides(passengerId);
-
-      // print("📊 Ride history fetched: $rides");
+  
+      List<Map<String, dynamic>> rides = await MongoDatabase.getDriverRides(driverId);
 
       setState(() {
         rideHistory = rides;
         _isLoading = false;
       });
     } catch (e) {
-      // print("❌ Error fetching ride history: $e");
       setState(() => _isLoading = false);
     }
   }
+
 
 
   Future<void> _fetchProfileData() async {

@@ -2,9 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/signup/login_page.dart';
 import 'package:lage/components/signup/signup_page.dart';
-import 'package:lage/components/tabpagesDriver/homescreendriver.dart';
+import 'package:lage/components/drivers/homescreendriver.dart';
 import 'package:lage/components/views/homescreen.dart';
-import 'package:lage/dbHelper/monggodb.dart';
+import 'package:lage/dbHelper/mongodb.dart';
 
 class Wrapper extends StatefulWidget {
   const Wrapper({super.key});

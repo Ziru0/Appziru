@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../dbHelper/monggodb.dart';
+import '../../../dbHelper/mongodb.dart';
+import '../../signup/editprofile.dart';
 import '../../signup/profilesetup.dart';
-import 'edit_profile.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -101,7 +101,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) => const Profilesetup(),
+                        builder: (context) => const EditProfile(),
                     ) // Navigate to setup page
                   );
                 },

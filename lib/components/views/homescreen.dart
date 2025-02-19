@@ -42,7 +42,7 @@ class _State extends State<HomeScreen> with SingleTickerProviderStateMixin
         children: const [
           HomeTabPage(),
           ServicesTabPage(),
-          ActivityTabPage(),
+          RideActivityPage(),
           ProfileTabPage(),
         ],
       ),
