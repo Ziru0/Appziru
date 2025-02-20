@@ -52,9 +52,21 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   List<LatLng> polylinePoints = []; // List to store polyline points
 
-
   List<LatLng> polylineCoordinates = [];
 
+  Stream<Map<String, dynamic>?> get rideUpdates => _rideStreamController.stream;
+
+  MongoDbModelUser? selectedDriver; // ✅ Declare globally to persist selection
+
+  Map<String, dynamic>? acceptedRequest;
+
+  final StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
+
+  String? passengerId;
+
+  List<MongoDbModelUser> users = [];
+
+  Timer? _rideUpdateTimer; // Make the timer nullable and a class member
   @override
   void initState() {
     super.initState();
@@ -98,8 +110,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
     return null;
   }
-
-  List<MongoDbModelUser> users = [];
 
   String getCurrentFirebaseUserId() {
     return FirebaseAuth.instance.currentUser?.uid ?? "";
@@ -146,15 +156,21 @@ class _HomeTabPageState extends State<HomeTabPage> {
         moveMapToPolyline();
 
         // 🔹 Extract route details
-        final double distance = data['routes'][0]['summary']['distance'] / 1000; // in km
-        final double duration = data['routes'][0]['summary']['duration'] / 60;   // in minutes
-        final double cost = distance * 10;
+        final double distanceDecimal = data['routes'][0]['summary']['distance'] / 1000; // in km
+        final double durationDecimal = data['routes'][0]['summary']['duration'] / 60;   // in minutes
+        final double costDecimal = distanceDecimal * 10;
 
-        // 🔹 Show confirmation inside `setState()` after a delay
+        // ✅ Format to two decimal places as strings
+        String distance = distanceDecimal.toStringAsFixed(2);
+        String duration = durationDecimal.toStringAsFixed(2);
+        String cost = costDecimal.toStringAsFixed(2);
+
+
+        // 🔹 Show confirmation inside setState() after a delay
         Future.delayed(Duration(seconds: 5), () {
           if (mounted) {
             Get.bottomSheet(
-                buildRideConfirmationSheet(distance, duration, cost)
+                buildRideConfirmationSheet(distance, duration, cost) // Pass formatted strings
             );
           }
         });
@@ -168,7 +184,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
   }
 
   Future<void> saveRideRequest(
-      MongoDbModelUser selectedDriver, double distance, double duration, double cost) async {
+      MongoDbModelUser selectedDriver, String distance, String duration, String cost) async {
 
     String firebaseUserId = getCurrentFirebaseUserId();
     MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
@@ -204,8 +220,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-  String? passengerId;
-
   void _fetchPassengerId() {
     setState(() {
       passengerId = profileData?['_id']?.toString(); // ✅ Ensure passengerId is set
@@ -216,23 +230,53 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-  final StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
-
   void _startListeningForRideUpdates() async {
     var collection = MongoDatabase.db.collection('requests');
 
-    Timer.periodic(Duration(seconds: 2), (timer) async {
-      if (passengerId == null) return;
+    _rideUpdateTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
+      if (passengerId == null) {
+        _rideUpdateTimer?.cancel(); // Stop the timer if passengerId is null
+        return;
+      }
 
       var result = await collection.findOne(
-        mongo.where.eq('passengerId', passengerId), // ✅ Listen for this passenger's ride
+        mongo.where.eq('passengerId', passengerId),
       );
 
-      _rideStreamController.add(result); // ✅ Push data to stream
+      if (result != null) {
+        String status = result['status'] ?? '';
+        _rideStreamController.add(result);
+
+        if (status == 'accepted') {
+          _rideUpdateTimer?.cancel(); // ✅ Stop the timer when status is 'accepted'
+          _rideUpdateTimer = null; // Important: set timer to null after canceling
+        }
+      } else {
+        _rideStreamController.add(null); // Handle the case where the document is deleted or no longer found
+      }
     });
   }
 
-  Stream<Map<String, dynamic>?> get rideUpdates => _rideStreamController.stream;
+  void _cancelRide() async {
+    if (acceptedRequest == null) return;
+
+    var collection = MongoDatabase.db.collection('requests');
+    await collection.updateOne(
+      mongo.where.eq('_id', acceptedRequest!['_id'] as mongo.ObjectId),
+      mongo.modify.set('status', 'canceled'),
+    );
+
+    setState(() {
+      acceptedRequest = null;
+      passengerId = null; // ✅ Reset passenger ID
+      polylinePoints.clear(); // ✅ Clear polyline on cancel
+      _rideUpdateTimer?.cancel(); // Stop any existing timer
+      _rideUpdateTimer = null;
+      _startListeningForRideUpdates();
+    });
+
+    _rideStreamController.add(null); // ✅ Clear stream
+  }
 
   List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
@@ -297,71 +341,56 @@ class _HomeTabPageState extends State<HomeTabPage> {
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
 
-  MongoDbModelUser? selectedDriver; // ✅ Declare globally to persist selection
-
-  Map<String, dynamic>? acceptedRequest;
-
-
-  void _cancelRide() async {
-    if (acceptedRequest == null) return;
-
-    var collection = MongoDatabase.db.collection('requests');
-    await collection.updateOne(
-      mongo.where.eq('_id', acceptedRequest!['_id'] as mongo.ObjectId),
-      mongo.modify.set('status', 'canceled'),
-    );
-
-    setState(() {
-      acceptedRequest = null;
-      passengerId = null; // ✅ Reset passenger ID
-      polylinePoints.clear(); // ✅ Clear polyline on cancel
-    });
-
-    _rideStreamController.add(null); // ✅ Clear stream
+  @override
+  void dispose() {
+    _rideUpdateTimer?.cancel(); // Cancel the timer to prevent memory leaks
+    _rideUpdateTimer = null;
+    _rideStreamController.close();
+    super.dispose();
   }
 
   @override
-    Widget build(BuildContext context) {
-      return Scaffold(
-        body: Stack(
-          children: [
-            FlutterMap(
-              mapController: mapController,
-              options: MapOptions(
-                initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
-                initialZoom: 15,
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          FlutterMap(
+            mapController: mapController,
+            options: MapOptions(
+              initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
+              initialZoom: 15,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                subdomains: ['a', 'b', 'c'],
               ),
-              children: [
-                TileLayer(
-                  urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
-                  subdomains: ['a', 'b', 'c'],
-                ),
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: polylinePoints, // Use the polyline points here
-                      color: Colors.blue,
-                      strokeWidth: 4.0,
-                    ),
-                  ],
-                ),
-                MarkerLayer(
-                  markers: markers.toList(),
-                ),
-              ],
-            ),
-            buildProfileTile(
-              name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
-              imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
-            ),
-            buildTextField(),
-            buildTextFieldForSource(), // Ensure this is displayed correctly
-            buildCurrentLocationIcon(),
-            _buildWaitingForPassengerWidget(),
-          ],
-        ),
-      );
-    }
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: polylinePoints, // Use the polyline points here
+                    color: Colors.blue,
+                    strokeWidth: 4.0,
+                  ),
+                ],
+              ),
+              MarkerLayer(
+                markers: markers.toList(),
+              ),
+            ],
+          ),
+          buildProfileTile(
+            name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
+            imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
+          ),
+          buildTextField(),
+          buildTextFieldForSource(), // Ensure this is displayed correctly
+          buildCurrentLocationIcon(),
+          _buildWaitingForPassengerWidget(),
+        ],
+      ),
+    );
+  }
 
   Widget _buildWaitingForPassengerWidget() {
     return StreamBuilder<Map<String, dynamic>?>(
@@ -661,7 +690,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   bool isAgreed = false; // Add state variable
 
-  Widget buildRideConfirmationSheet(double distance, double duration, double cost) {
+  Widget buildRideConfirmationSheet(String distance, String duration, String cost) {
     return StatefulBuilder(
       builder: (context, setState) => Container(
         width: Get.width,
@@ -759,108 +788,109 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   int selectedRide = 0;
 
-  Widget buildDriversList(double distance, double duration, double cost) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return Center(child: textWidget(text: "No drivers available", fontSize: 16));
-        }
+    Widget buildDriversList(String distance, String duration, String cost) {
+      return FutureBuilder<List<Map<String, dynamic>>>(
+        future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(child: textWidget(text: "No drivers available", fontSize: 16));
+          }
 
-        // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
-        List<MongoDbModelUser> users = snapshot.data!
-            .map((data) => MongoDbModelUser.fromJson(data))
-            .toList();
+          // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
+          List<MongoDbModelUser> users = snapshot.data!
+              .map((data) => MongoDbModelUser.fromJson(data))
+              .toList();
 
-        // Filter the users where the role is 'Driver'
-        List<MongoDbModelUser> filteredUsers = users
-            .where((user) => user.role == 'Driver')
-            .toList();
+          // Filter the users where the role is 'Driver'
+          List<MongoDbModelUser> filteredUsers = users
+              .where((user) => user.role == 'Driver')
+              .toList();
 
-        // Debugging: Print the fetched users list
-        // print("Fetched users: ${filteredUsers.length}");
+          // Debugging: Print the fetched users list
+          print("Fetched users: ${filteredUsers.length}");
 
-        return SizedBox(
-          height: 100,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return ListView.builder(
-                itemCount: filteredUsers.length,
-                scrollDirection: Axis.horizontal,
-                itemBuilder: (ctx, i) {
-                  var driver = filteredUsers[i];
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        selectedRide = i;
-                        selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
-                        // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
-                      });
-                    },
+          return SizedBox(
+            height: 100,
+            child: StatefulBuilder(
+              builder: (context, setState) {
+                return ListView.builder(
+                  itemCount: filteredUsers.length,
+                  scrollDirection: Axis.horizontal,
+                  itemBuilder: (ctx, i) {
+                    var driver = filteredUsers[i];
+                    return InkWell(
+                      onTap: () {
+                        setState(() {
+                          selectedRide = i;
+                          selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
+                          // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                        });
+                      },
 
                       child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
-                  );
-                },
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
+                    );
+                  },
+                );
+              },
+            ),
+          );
+        },
+      );
+    }
 
-  buildDriverCard(MongoDbModelUser user, bool selected, double distance, double duration, double cost) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      height: 90,
-      width: 170,
-      decoration: BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: selected
-                ? const Color(0xff2DBB54).withAlpha((0.2 * 255).toInt())
-                : Colors.grey.withAlpha((0.2 * 255).toInt()),            offset: Offset(0, 5),
-            blurRadius: 5,
-            spreadRadius: 1,
-          ),
-        ],
-        borderRadius: BorderRadius.circular(12),
-        color: selected ? Color(0xff2DBB54) : Colors.grey,
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            textWidget(
-              text: user.fullname ?? "No Name",  // Display the driver's name directly
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-            textWidget(
-              text: 'Est. Fare: ₱${cost.toStringAsFixed(2)}',  // Estimated fare
-              color: Colors.white,
-              fontWeight: FontWeight.w500,
-            ),
-            textWidget(
-              text: 'ETA: ${duration.toStringAsFixed(2)} MIN',  // Estimated time of arrival
-              color: Colors.white.withAlpha((0.8 * 255).toInt()),  // Adjust alpha for opacity
-              fontSize: 12,
-            ),
-            textWidget(
-              text: 'Distance: ${distance.toStringAsFixed(2)} km',  // Distance
-              color: Colors.white.withAlpha((0.8 * 255).toInt()),  // Adjust alpha for opacity
-              fontSize: 12,
+
+    buildDriverCard(MongoDbModelUser user, bool selected, String distance, String duration, String cost) {
+      return Container(
+        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        height: 90,
+        width: 170,
+        decoration: BoxDecoration(
+          boxShadow: [
+            BoxShadow(
+              color: selected
+                  ? const Color(0xff2DBB54).withAlpha((0.2 * 255).toInt())
+                  : Colors.grey.withAlpha((0.2 * 255).toInt()),
+              offset: Offset(0, 5),
+              blurRadius: 5,
+              spreadRadius: 1,
             ),
           ],
+          borderRadius: BorderRadius.circular(12),
+          color: selected ? Color(0xff2DBB54) : Colors.grey,
         ),
-      ),
-    );
-  }
-
+        child: Padding(
+          padding: EdgeInsets.all(10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              textWidget(
+                text: user.fullname ?? "No Name",  // Display the driver's name directly
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+              ),
+              textWidget(
+                text: 'Est. Fare: ₱$cost',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+                color: Colors.white,
+                fontWeight: FontWeight.w500,
+              ),
+              textWidget(
+                text: 'ETA: $duration MIN',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+                color: Colors.white.withAlpha((0.8 * 255).toInt()),
+                fontSize: 12,
+              ),
+              textWidget(
+                text: 'Distance: $distance km',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+                color: Colors.white.withAlpha((0.8 * 255).toInt()),
+                fontSize: 12,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
   Widget textWidget({required String text,double fontSize = 12, FontWeight fontWeight = FontWeight.normal,Color color = Colors.black}){
     return Text(text, style: GoogleFonts.poppins(fontSize: fontSize,fontWeight: fontWeight,color: color),);

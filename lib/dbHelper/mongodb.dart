@@ -35,12 +35,37 @@ class MongoDatabase {
     }
   }
 
-
-  // Fetch all data from user collection
   static Future<List<Map<String, dynamic>>> getData() async {
-    final arrData = await userCollection.find().toList();
-    return arrData;
+    try {
+      // Fetch raw data from MongoDB
+      var users = await userCollection!.find().toList();
+      print("📊 Raw data from MongoDB (getData - Attempt 2): $users");
+
+      // Explicitly define the return type of the map function
+      List<Map<String, dynamic>> formattedUsers = users.map<Map<String, dynamic>>((user) { // <-- Explicit return type here
+        if (user is Map) {
+          Map<String, dynamic> userData = Map<String, dynamic>.from(user);
+
+          userData.forEach((key, value) {
+            if (value is ObjectId) {
+              userData[key] = value.toHexString();
+            }
+          });
+          return userData;
+        } else {
+          print("❌ Unexpected data type in MongoDB result (Attempt 2): $user");
+          return <String, dynamic>{};
+        }
+      }).toList();
+
+      print("✅ Formatted Data (getData - Attempt 2): $formattedUsers");
+      return formattedUsers;
+    } catch (e) {
+      print("❌ Error fetching data (getData - Attempt 2): $e");
+      return [];
+    }
   }
+
 
   static Future<String> insertUser(Map<String, dynamic> data) async {
     try {

@@ -21,6 +21,11 @@ class _ProfilesetupState extends State<Profilesetup> {
   var numberController = TextEditingController();
   var addressController = TextEditingController();
   var carInfoController = TextEditingController(); // Added controller for car info
+  var cabnumberController = TextEditingController();
+  var cabcolorController = TextEditingController();
+  var cabbrandController = TextEditingController();
+
+
   String? selectedRole; // Variable to store the selected role
   final List<String> roles = ['Driver', 'Passenger']; // Available roles
   File? _profileImage;
@@ -112,7 +117,10 @@ class _ProfilesetupState extends State<Profilesetup> {
         addressController.text,
         selectedRole!,
         imageUrl, // Pass uploaded image URL
-        carInfo, // Pass car info, can be null if not driver
+          cabnumberController.text ,
+          cabcolorController.text, // Clear car info controller
+          cabbrandController.text
+
       );
 
       if (mounted) {
@@ -130,7 +138,7 @@ class _ProfilesetupState extends State<Profilesetup> {
 
 
   Future<void> _insertData(
-      String firebaseId, String fName, String number, String address, String role, String? imageUrl, String? carInfo) async {
+      String firebaseId, String fName, String number, String address, String role, String? imageUrl, String? cabcolor,String? cabnumber,String? cabbrand) async {
 
     var userData = await MongoDatabase.getOne(firebaseId);
 
@@ -172,7 +180,10 @@ class _ProfilesetupState extends State<Profilesetup> {
       // Insert car info into a new collection
       var driverInfo = {
         "firebaseId": firebaseId,
-        "carInfo": carInfo,
+        "cabnumber": cabnumber,
+        "cabcolor": cabcolor,
+        "cabbrand": cabbrand,
+
         "userId": objectId, // Link to the user document
       };
       await MongoDatabase.insertDriver(driverInfo); // Assume this function exists in MongoDatabase
@@ -198,7 +209,9 @@ class _ProfilesetupState extends State<Profilesetup> {
     numberController.text = "";
     addressController.text = "";
     selectedRole = null;
-    carInfoController.text = ""; // Clear car info controller
+    cabnumberController.text = "";
+    cabcolorController.text = "";
+    cabbrandController.text = "";
   }
 
   @override
@@ -298,14 +311,38 @@ class _ProfilesetupState extends State<Profilesetup> {
                 Padding(
                   padding: const EdgeInsets.only(top: 20.0),
                   child: TextField(
-                    controller: carInfoController,
+                    controller: cabnumberController,
                     decoration: const InputDecoration(
-                      labelText: "Car Information",
+                      labelText: "Plate Number Information",
                       border: OutlineInputBorder(),
                       prefixIcon: Icon(Icons.directions_car),
                     ),
                   ),
                 ),
+              const SizedBox(height: 30),
+              Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: TextField(
+                  controller: cabcolorController,
+                  decoration: const InputDecoration(
+                    labelText: "Car Color Information",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.directions_car),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+              Padding(
+                padding: const EdgeInsets.only(top: 20.0),
+                child: TextField(
+                  controller: cabbrandController,
+                  decoration: const InputDecoration(
+                    labelText: "Car Brand Information",
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.directions_car),
+                  ),
+                ),
+              ),
               const SizedBox(height: 30),
               // Button to complete profile setup
               Center(

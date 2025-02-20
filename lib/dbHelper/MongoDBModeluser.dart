@@ -41,19 +41,23 @@ class MongoDbModelUser {
     String? driverId,
     String? passengerId,
     this.coordinates,
-    this.distance,  // Added
-    this.duration,  // Added
-    this.cost,      // Added
-  })  : driverId = driverId ?? id.oid,
+    this.distance, // Added
+    this.duration, // Added
+    this.cost, // Added
+  })
+      : driverId = driverId ?? id.oid,
         passengerId = passengerId ?? id.oid;
 
   factory MongoDbModelUser.fromJson(Map<String, dynamic> json) {
-    if (!json.containsKey("_id") || json["_id"] == null) {
-      throw FormatException("Missing _id in the provided JSON.");
+    // Ensure _id is an ObjectId and handle it gracefully
+    ObjectId objectId;
+    if (json["_id"] is ObjectId) {
+      objectId = json["_id"];
+    } else if (json["_id"] is String) {
+      objectId = ObjectId.fromHexString(json["_id"]);
+    } else {
+      throw FormatException("Invalid _id format in the provided JSON.");
     }
-
-    // Ensure _id is an ObjectId
-    final objectId = json["_id"] is ObjectId ? json["_id"] : ObjectId.parse(json["_id"]);
 
     return MongoDbModelUser(
       id: objectId,
@@ -66,27 +70,28 @@ class MongoDbModelUser {
       driverId: json["driverId"] ?? objectId.oid,
       passengerId: json["passengerId"] ?? objectId.oid,
       coordinates: json["coordinates"],
-      distance: json["distance"]?.toDouble(), // Added
-      duration: json["duration"]?.toDouble(), // Added
-      cost: json["cost"]?.toDouble(),         // Added
+      distance: json["distance"]?.toDouble(),
+      duration: json["duration"]?.toDouble(),
+      cost: json["cost"]?.toDouble(),
     );
   }
 
   get profileImage => null;
 
-  Map<String, dynamic> toJson() => {
-    "_id": id,
-    "email": email,
-    "firebaseId": firebaseId,
-    "fullname": fullname,
-    "number": number,
-    "address": address,
-    "role": role,
-    "driverId": driverId,
-    "passengerId": passengerId,
-    "coordinates": coordinates,
-    "distance": distance,  // Added
-    "duration": duration,  // Added
-    "cost": cost,          // Added
-  };
+  Map<String, dynamic> toJson() =>
+      {
+        "_id": id.toHexString(), // Convert ObjectId to String
+        "email": email,
+        "firebaseId": firebaseId,
+        "fullname": fullname,
+        "number": number,
+        "address": address,
+        "role": role,
+        "driverId": driverId,
+        "passengerId": passengerId,
+        "coordinates": coordinates,
+        "distance": distance,
+        "duration": duration,
+        "cost": cost,
+      };
 }
