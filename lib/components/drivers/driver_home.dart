@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -26,6 +27,7 @@ class DriverHomePageState extends State<DriverHomePage> {
   bool isAvailable = true;
   LatLng? startCoordinates;
   LatLng? endCoordinates;
+  Timer? _rideRequestTimer; // Timer for ride request polling
 
   @override
   void initState() {
@@ -34,6 +36,13 @@ class DriverHomePageState extends State<DriverHomePage> {
     _fetchProfileData();
   }
 
+  @override
+  void dispose() {
+    _rideRequestTimer?.cancel(); // Cancel timer to prevent memory leaks
+    super.dispose();
+  }
+
+
   void _fetchProfileData() async {
     try {
       var user = FirebaseAuth.instance.currentUser;
@@ -41,28 +50,70 @@ class DriverHomePageState extends State<DriverHomePage> {
         var data = await MongoDatabase.getOne(user.uid);
         if (data != null) {
           setState(() => profileData = data);
-            _listenForRideRequests();
+          _startListeningForRideRequests(); // Start listening after profile data is loaded
         }
       }
     } catch (e) {
     }
   }
 
+  void _startListeningForRideRequests() {
+    if (_rideRequestTimer != null && _rideRequestTimer!.isActive) {
+      return; // Timer already active
+    }
+    _rideRequestTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _listenForRideRequests();
+    });
+  }
+
+
   void _listenForRideRequests() async {
     if (profileData == null) return;
     var collection = MongoDatabase.db.collection('requests');
     var driverId = profileData?['_id'].toHexString();
-    while (mounted) {
-      var requests = await collection.find({
-        'driverId': driverId,
-        'status': 'pending'
-      }).toList();
-      setState(() {
-        rideRequests = requests;
-      });
-      await Future.delayed(const Duration(seconds: 5));
+
+    var requests = await collection.find({
+      'driverId': driverId,
+      'status': 'pending'
+    }).toList();
+
+    List<Map<String, dynamic>> newRequests = List<Map<String, dynamic>>.from(requests);
+
+
+    // Check for cancellations in existing rideRequests
+    for (var existingRequest in rideRequests) {
+      bool stillPending = newRequests.any((req) => req['_id'] == existingRequest['_id']);
+      if (!stillPending) {
+        // Request is no longer in pending requests, check if it was cancelled
+        var cancelledRequest = await collection.findOne(mongo.where.eq('_id', existingRequest['_id'] as mongo.ObjectId));
+        if (cancelledRequest != null && cancelledRequest['status'] == 'cancelled') {
+          _showPassengerCancelledNotification(cancelledRequest);
+        }
+      }
     }
+
+
+    setState(() {
+      rideRequests = newRequests;
+    });
   }
+
+
+  void _showPassengerCancelledNotification(Map<String, dynamic> request) {
+    Get.snackbar(
+      "Ride Request Cancelled",
+      "The passenger ${request['fullname']} has cancelled the ride request.",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.orange,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 5), // Adjust duration as needed
+    );
+    // Optionally remove it from local rideRequests list if you want to immediately remove from UI
+    setState(() {
+      rideRequests.removeWhere((req) => req['_id'] == request['_id']);
+    });
+  }
+
 
   void _acceptRideRequest(Map<String, dynamic> request) async {
     var collection = MongoDatabase.db.collection('requests');
@@ -92,7 +143,7 @@ class DriverHomePageState extends State<DriverHomePage> {
 
     // ✅ Fetch and display the route
     await fetchRoute();
-    }
+  }
 
   Future<void> fetchRoute() async {
     if (startCoordinates == null || endCoordinates == null) {
@@ -209,7 +260,15 @@ class DriverHomePageState extends State<DriverHomePage> {
     setState(() {
       rideRequests.remove(request);
     });
+    Get.snackbar( // Notify driver with snackbar
+      "Ride Request Declined",
+      "The ride request from ${request['fullname']} has been declined.",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.orange, // Use orange to indicate declined/cancelled
+      colorText: Colors.white,
+    );
   }
+
 
   void _toggleAvailability() async {
     setState(() {
@@ -280,9 +339,12 @@ class DriverHomePageState extends State<DriverHomePage> {
 
 
 
+  bool isTermsAccepted = false;
+
   Widget _buildRideRequestWidget() {
     if (rideRequests.isEmpty) return SizedBox();
     var request = rideRequests.first;
+
     return Positioned(
       bottom: 20,
       left: 20,
@@ -294,14 +356,37 @@ class DriverHomePageState extends State<DriverHomePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Ride Request from ${request['fullname']}'),
+              Text(
+                'Ride Request from ${request['fullname']}',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
               Text('Distance: ${request['distance']} km'),
               Text('Cost: PHP ${request['cost']}'),
+              SizedBox(height: 12),
+              Row(
+                children: [
+                  Checkbox(
+                    value: isTermsAccepted,
+                    onChanged: (bool? value) {
+                      setState(() {
+                        isTermsAccepted = value ?? false;
+                      });
+                    },
+                  ),
+                  Expanded(
+                    child: Text(
+                      "I agree to the Terms and Conditions",
+                      style: TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    onPressed: () => _acceptRideRequest(request),
+                    onPressed: isTermsAccepted ? () => _acceptRideRequest(request) : null,
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: Text("Accept"),
                   ),
@@ -350,11 +435,6 @@ class DriverHomePageState extends State<DriverHomePage> {
                     onPressed: () => _completeRide('completed'),
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: Text("Done"),
-                  ),
-                  ElevatedButton(
-                    onPressed: () => _completeRide('failed'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                    child: Text("Failed"),
                   ),
                 ],
               ),

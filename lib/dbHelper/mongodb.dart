@@ -66,7 +66,6 @@ class MongoDatabase {
     }
   }
 
-
   static Future<String> insertUser(Map<String, dynamic> data) async {
     try {
       var result = await userCollection.insertOne(data);

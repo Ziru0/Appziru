@@ -34,7 +34,7 @@ class _DriverActivityPageState extends State<DriverActivityPage> {
         setState(() => _isLoading = false);
         return;
       }
-  
+
       List<Map<String, dynamic>> rides = await MongoDatabase.getDriverRides(driverId);
 
       setState(() {

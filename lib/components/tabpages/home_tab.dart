@@ -32,6 +32,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
         setState(() {
           profileData = data;
         });
+        _listenForRideAcceptance(); // Start listening for ride acceptance after profile is fetched
       }
     } catch (e) {
       // print('Error fetching profile data: $e');
@@ -59,21 +60,70 @@ class _HomeTabPageState extends State<HomeTabPage> {
   MongoDbModelUser? selectedDriver; // ✅ Declare globally to persist selection
 
   Map<String, dynamic>? acceptedRequest;
+  Map<String, dynamic>? rideAcceptedDetails; // Store accepted ride details
 
-  final StreamController<Map<String, dynamic>?> _rideStreamController = StreamController.broadcast();
+  final _rideStreamController = StreamController<Map<String, dynamic>?>.broadcast();
 
   String? passengerId;
 
   List<MongoDbModelUser> users = [];
 
-  Timer? _rideUpdateTimer; // Make the timer nullable and a class member
+  Timer? _rideAcceptanceTimer; // Timer for ride acceptance listener
+
   @override
   void initState() {
     super.initState();
     mapController = MapController();
     _fetchProfileData();
-    _fetchPassengerId();
   }
+
+  void _listenForRideAcceptance() async {
+    if (profileData == null) return;
+    var collection = MongoDatabase.db.collection('requests');
+    var passengerId = profileData?['_id'].toHexString();
+
+    _rideAcceptanceTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      var request = await collection.findOne({
+        'passengerId': passengerId,
+        'status': 'accepted'
+      });
+
+      if (request != null) {
+        setState(() {
+          rideAcceptedDetails = request; // Store accepted request details
+        });
+        _rideAcceptanceTimer?.cancel(); // Stop the timer once accepted
+      }
+    });
+  }
+
+  void _cancelRide() async {
+    if (rideAcceptedDetails == null) return; // Use rideAcceptedDetails
+
+    var collection = MongoDatabase.db.collection('requests');
+    await collection.updateOne(
+      mongo.where.eq('_id', rideAcceptedDetails!['_id'] as mongo.ObjectId), // Use rideAcceptedDetails
+      mongo.modify.set('status', 'cancelled'),
+    );
+
+    setState(() {
+      rideAcceptedDetails = null; // Reset rideAcceptedDetails
+      passengerId = null;
+      polylinePoints.clear();
+      _rideAcceptanceTimer?.cancel(); // Cancel ride acceptance timer
+      _rideAcceptanceTimer = null;
+    });
+
+    _rideStreamController.add(null);
+    Get.snackbar( // Notify user with snackbar
+      "Ride Canceled",
+      "Your ride request has been canceled.",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  }
+
 
   Future<List<String>> fetchPlaceSuggestions(String query) async {
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
@@ -158,7 +208,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
         // 🔹 Extract route details
         final double distanceDecimal = data['routes'][0]['summary']['distance'] / 1000; // in km
         final double durationDecimal = data['routes'][0]['summary']['duration'] / 60;   // in minutes
-        final double costDecimal = distanceDecimal * 10;
+        final double costDecimal = distanceDecimal * 15;
 
         // ✅ Format to two decimal places as strings
         String distance = distanceDecimal.toStringAsFixed(2);
@@ -220,63 +270,8 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-  void _fetchPassengerId() {
-    setState(() {
-      passengerId = profileData?['_id']?.toString(); // ✅ Ensure passengerId is set
-    });
 
-    if (passengerId != null) {
-      _startListeningForRideUpdates();
-    }
-  }
 
-  void _startListeningForRideUpdates() async {
-    var collection = MongoDatabase.db.collection('requests');
-
-    _rideUpdateTimer = Timer.periodic(Duration(seconds: 2), (timer) async {
-      if (passengerId == null) {
-        _rideUpdateTimer?.cancel(); // Stop the timer if passengerId is null
-        return;
-      }
-
-      var result = await collection.findOne(
-        mongo.where.eq('passengerId', passengerId),
-      );
-
-      if (result != null) {
-        String status = result['status'] ?? '';
-        _rideStreamController.add(result);
-
-        if (status == 'accepted') {
-          _rideUpdateTimer?.cancel(); // ✅ Stop the timer when status is 'accepted'
-          _rideUpdateTimer = null; // Important: set timer to null after canceling
-        }
-      } else {
-        _rideStreamController.add(null); // Handle the case where the document is deleted or no longer found
-      }
-    });
-  }
-
-  void _cancelRide() async {
-    if (acceptedRequest == null) return;
-
-    var collection = MongoDatabase.db.collection('requests');
-    await collection.updateOne(
-      mongo.where.eq('_id', acceptedRequest!['_id'] as mongo.ObjectId),
-      mongo.modify.set('status', 'canceled'),
-    );
-
-    setState(() {
-      acceptedRequest = null;
-      passengerId = null; // ✅ Reset passenger ID
-      polylinePoints.clear(); // ✅ Clear polyline on cancel
-      _rideUpdateTimer?.cancel(); // Stop any existing timer
-      _rideUpdateTimer = null;
-      _startListeningForRideUpdates();
-    });
-
-    _rideStreamController.add(null); // ✅ Clear stream
-  }
 
   List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
@@ -341,13 +336,39 @@ class _HomeTabPageState extends State<HomeTabPage> {
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
 
-  @override
-  void dispose() {
-    _rideUpdateTimer?.cancel(); // Cancel the timer to prevent memory leaks
-    _rideUpdateTimer = null;
-    _rideStreamController.close();
-    super.dispose();
+  Widget _buildRideAcceptedWidget() {
+    if (rideAcceptedDetails == null) return SizedBox();
+
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Card(
+        elevation: 5,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ride Accepted!',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+              ),
+              SizedBox(height: 8),
+              // You can display more details here if needed, like driver name etc.
+              Text('Your ride request has been accepted by a driver.'),
+              ElevatedButton( // Add Cancel Ride Button
+                onPressed: _cancelRide,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: Text("Cancel Ride"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -386,71 +407,11 @@ class _HomeTabPageState extends State<HomeTabPage> {
           buildTextField(),
           buildTextFieldForSource(), // Ensure this is displayed correctly
           buildCurrentLocationIcon(),
-          _buildWaitingForPassengerWidget(),
+          _buildRideAcceptedWidget(), // Display ride accepted widget
         ],
       ),
     );
   }
-
-  Widget _buildWaitingForPassengerWidget() {
-    return StreamBuilder<Map<String, dynamic>?>(
-      stream: rideUpdates,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data == null) {
-          return SizedBox(); // ✅ Hide widget if there's no active ride request
-        }
-
-        var ride = snapshot.data!;
-        String status = ride['status'] ?? '';
-
-        if (status.isEmpty) {
-          return SizedBox(); // ✅ Hide widget if no status is available
-        }
-
-        if (status == 'accepted') {
-          return Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
-            child: Card(
-              elevation: 5,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Driver is on the way!",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 8),
-                    Text("Driver: ${ride['driverName'] ?? 'Unknown'}"),
-                    Text("ETA: ${ride['estimatedTime'] ?? 'N/A'} mins"),
-                    SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton(
-                          onPressed: _cancelRide,
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                          child: Text("Cancel Ride"),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        }
-
-        return SizedBox(); // ✅ Hide widget if the request is not accepted
-      },
-    );
-  }
-
-
 
 
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
@@ -788,109 +749,109 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   int selectedRide = 0;
 
-    Widget buildDriversList(String distance, String duration, String cost) {
-      return FutureBuilder<List<Map<String, dynamic>>>(
-        future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return Center(child: textWidget(text: "No drivers available", fontSize: 16));
-          }
+  Widget buildDriversList(String distance, String duration, String cost) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(child: textWidget(text: "No drivers available", fontSize: 16));
+        }
 
-          // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
-          List<MongoDbModelUser> users = snapshot.data!
-              .map((data) => MongoDbModelUser.fromJson(data))
-              .toList();
+        // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
+        List<MongoDbModelUser> users = snapshot.data!
+            .map((data) => MongoDbModelUser.fromJson(data))
+            .toList();
 
-          // Filter the users where the role is 'Driver'
-          List<MongoDbModelUser> filteredUsers = users
-              .where((user) => user.role == 'Driver')
-              .toList();
+        // Filter the users where the role is 'Driver'
+        List<MongoDbModelUser> filteredUsers = users
+            .where((user) => user.role == 'Driver')
+            .toList();
 
-          // Debugging: Print the fetched users list
-          print("Fetched users: ${filteredUsers.length}");
+        // Debugging: Print the fetched users list
+        print("Fetched users: ${filteredUsers.length}");
 
-          return SizedBox(
-            height: 100,
-            child: StatefulBuilder(
-              builder: (context, setState) {
-                return ListView.builder(
-                  itemCount: filteredUsers.length,
-                  scrollDirection: Axis.horizontal,
-                  itemBuilder: (ctx, i) {
-                    var driver = filteredUsers[i];
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          selectedRide = i;
-                          selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
-                          // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
-                        });
-                      },
+        return SizedBox(
+          height: 100,
+          child: StatefulBuilder(
+            builder: (context, setState) {
+              return ListView.builder(
+                itemCount: filteredUsers.length,
+                scrollDirection: Axis.horizontal,
+                itemBuilder: (ctx, i) {
+                  var driver = filteredUsers[i];
+                  return InkWell(
+                    onTap: () {
+                      setState(() {
+                        selectedRide = i;
+                        selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
+                        // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
+                      });
+                    },
 
-                      child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
-                    );
-                  },
-                );
-              },
+                    child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
+                  );
+                },
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+
+  buildDriverCard(MongoDbModelUser user, bool selected, String distance, String duration, String cost) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      height: 90,
+      width: 170,
+      decoration: BoxDecoration(
+        boxShadow: [
+          BoxShadow(
+            color: selected
+                ? const Color(0xff2DBB54).withAlpha((0.2 * 255).toInt())
+                : Colors.grey.withAlpha((0.2 * 255).toInt()),
+            offset: Offset(0, 5),
+            blurRadius: 5,
+            spreadRadius: 1,
+          ),
+        ],
+        borderRadius: BorderRadius.circular(12),
+        color: selected ? Color(0xff2DBB54) : Colors.grey,
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            textWidget(
+              text: user.fullname ?? "No Name",  // Display the driver's name directly
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
             ),
-          );
-        },
-      );
-    }
-
-
-    buildDriverCard(MongoDbModelUser user, bool selected, String distance, String duration, String cost) {
-      return Container(
-        margin: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        height: 90,
-        width: 170,
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: selected
-                  ? const Color(0xff2DBB54).withAlpha((0.2 * 255).toInt())
-                  : Colors.grey.withAlpha((0.2 * 255).toInt()),
-              offset: Offset(0, 5),
-              blurRadius: 5,
-              spreadRadius: 1,
+            textWidget(
+              text: 'Est. Fare: ₱$cost',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+            ),
+            textWidget(
+              text: 'ETA: $duration MIN',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+              color: Colors.white.withAlpha((0.8 * 255).toInt()),
+              fontSize: 12,
+            ),
+            textWidget(
+              text: 'Distance: $distance km',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+              color: Colors.white.withAlpha((0.8 * 255).toInt()),
+              fontSize: 12,
             ),
           ],
-          borderRadius: BorderRadius.circular(12),
-          color: selected ? Color(0xff2DBB54) : Colors.grey,
         ),
-        child: Padding(
-          padding: EdgeInsets.all(10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              textWidget(
-                text: user.fullname ?? "No Name",  // Display the driver's name directly
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-              textWidget(
-                text: 'Est. Fare: ₱$cost',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
-                color: Colors.white,
-                fontWeight: FontWeight.w500,
-              ),
-              textWidget(
-                text: 'ETA: $duration MIN',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
-                color: Colors.white.withAlpha((0.8 * 255).toInt()),
-                fontSize: 12,
-              ),
-              textWidget(
-                text: 'Distance: $distance km',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
-                color: Colors.white.withAlpha((0.8 * 255).toInt()),
-                fontSize: 12,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
+      ),
+    );
+  }
 
   Widget textWidget({required String text,double fontSize = 12, FontWeight fontWeight = FontWeight.normal,Color color = Colors.black}){
     return Text(text, style: GoogleFonts.poppins(fontSize: fontSize,fontWeight: fontWeight,color: color),);
