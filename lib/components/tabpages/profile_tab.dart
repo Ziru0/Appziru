@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lage/components/tabpages/profilepages/Policy.dart';
 import 'package:lage/components/tabpages/profilepages/my_profile.dart';
 import 'package:lage/components/tabpages/profilepages/notifications.dart';
+import 'package:lage/components/tabpages/terms_condition.dart';
 
 import '../../dbHelper/mongodb.dart';
 import '../signup/editprofile.dart';
@@ -168,9 +169,7 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
               buildAccountOption(
                 title: "Terms of Service",
                 icon: Icons.article,
-                onTap: () {
-                  // Navigate to Terms of Service Page
-                },
+                onTap: () => Get.to(() =>  TermsAndConditionsPage())   ,            // Navigate to Terms of Service Page
               ),
               buildAccountOption(
                 title: "Log Out",

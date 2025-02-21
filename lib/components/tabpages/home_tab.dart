@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:get/get.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:lage/components/tabpages/terms_condition.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
@@ -656,10 +657,10 @@ class _HomeTabPageState extends State<HomeTabPage> {
       builder: (context, setState) => Container(
         width: Get.width,
         height: Get.height * 0.35, // Increased height for the agreement
-        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -674,11 +675,15 @@ class _HomeTabPageState extends State<HomeTabPage> {
                 ),
               ),
             ),
-            textWidget(text: 'Select a Driver:', fontSize: 18, fontWeight: FontWeight.bold),
-            SizedBox(height: 10),
+            textWidget(
+              text: 'Select a Driver:',
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+            const SizedBox(height: 10),
             buildDriversList(distance, duration, cost), // ✅ Pass the values
-            SizedBox(height: 10),
-            Divider(),
+            const SizedBox(height: 10),
+            const Divider(),
             Row(
               children: [
                 Checkbox(
@@ -690,14 +695,23 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   },
                 ),
                 Expanded(
-                  child: textWidget(
-                    text: 'I agree to the terms and conditions.',
-                    fontSize: 14,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const TermsAndConditionsPage()),
+                      );
+                    },
+                    child: textWidget(
+                      text: 'I agree to the terms and conditions.',
+                      fontSize: 14,
+                      color: Colors.blue, // Make it look like a hyperlink
+                    ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 10),
+            const SizedBox(height: 10),
             Center(
               child: MaterialButton(
                 onPressed: () {
@@ -723,7 +737,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                       snackPosition: SnackPosition.BOTTOM,
                       backgroundColor: Colors.blue,
                       colorText: Colors.white,
-                      duration: Duration(seconds: 4),
+                      duration: const Duration(seconds: 4),
                     );
                   } else {
                     Get.snackbar(
@@ -736,7 +750,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   }
                 },
                 color: isAgreed ? Colors.blue : Colors.grey, // Disable button if not agreed
-                shape: StadiumBorder(),
+                shape: const StadiumBorder(),
                 child: textWidget(text: 'Confirm', color: Colors.white),
               ),
             ),
@@ -745,6 +759,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
       ),
     );
   }
+
 
 
   int selectedRide = 0;

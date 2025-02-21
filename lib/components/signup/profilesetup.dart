@@ -100,7 +100,10 @@ class _ProfilesetupState extends State<Profilesetup> {
       }
 
       if (selectedRole == 'Driver') {
-        carInfo = carInfoController.text;
+        carInfo =
+            cabnumberController.text ;
+    cabcolorController.text; // Clear car info controller
+    cabbrandController.text;
         if (carInfo.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Car information is required for drivers.")),
@@ -319,9 +322,10 @@ class _ProfilesetupState extends State<Profilesetup> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
+              if (selectedRole == 'Driver')
               Padding(
-                padding: const EdgeInsets.only(top: 20.0),
+                padding: const EdgeInsets.only(top: 10.0),
                 child: TextField(
                   controller: cabcolorController,
                   decoration: const InputDecoration(
@@ -331,9 +335,10 @@ class _ProfilesetupState extends State<Profilesetup> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
+              if (selectedRole == 'Driver')
               Padding(
-                padding: const EdgeInsets.only(top: 20.0),
+                padding: const EdgeInsets.only(top: 10.0),
                 child: TextField(
                   controller: cabbrandController,
                   decoration: const InputDecoration(
@@ -343,7 +348,7 @@ class _ProfilesetupState extends State<Profilesetup> {
                   ),
                 ),
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 10),
               // Button to complete profile setup
               Center(
                 child: ElevatedButton.icon(
