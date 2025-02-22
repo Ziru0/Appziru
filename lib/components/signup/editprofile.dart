@@ -18,7 +18,6 @@ class _EditProfileState extends State<EditProfile> {
   var fnameController = TextEditingController();
   var numberController = TextEditingController();
   var addressController = TextEditingController();
-  final List<String> roles = ['Driver', 'Passenger'];
   File? _profileImage;
   String? imageUrl;
   final ImagePicker _picker = ImagePicker();

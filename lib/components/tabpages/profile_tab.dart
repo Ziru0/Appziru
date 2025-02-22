@@ -8,6 +8,7 @@ import 'package:lage/components/tabpages/profilepages/notifications.dart';
 import 'package:lage/components/tabpages/terms_condition.dart';
 
 import '../../dbHelper/mongodb.dart';
+import '../signup/cpassword.dart';
 import '../signup/editprofile.dart';
 import '../signup/login_page.dart';
 
@@ -120,9 +121,7 @@ class _ProfileTabPageState extends State<ProfileTabPage> {
               buildAccountOption(
                 title: "Change Password",
                 icon: Icons.lock,
-                onTap: () {
-                  // Navigate to Change Password Page
-                },
+                  onTap: () => Get.to(() => const ChangePasswordPage()),
               ),
               const Divider(),
               Text(

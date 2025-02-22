@@ -86,9 +86,6 @@ class MongoDatabase {
           .set('number', updatedData['number'])
           .set('address', updatedData['address'])
           .set('profileImage', updatedData['profileImage'])
-          .set('role', updatedData['role'])
-          .set('driverId', updatedData['driverId'])
-          .set('passengerId', updatedData['passengerId']),
     );
 
     if (result.isSuccess) {

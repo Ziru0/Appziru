@@ -57,15 +57,6 @@ class DriverHomePageState extends State<DriverHomePage> {
     }
   }
 
-  void _startListeningForRideRequests() {
-    if (_rideRequestTimer != null && _rideRequestTimer!.isActive) {
-      return; // Timer already active
-    }
-    _rideRequestTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      _listenForRideRequests();
-    });
-  }
-
 
   void _listenForRideRequests() async {
     if (profileData == null) return;
@@ -79,25 +70,32 @@ class DriverHomePageState extends State<DriverHomePage> {
 
     List<Map<String, dynamic>> newRequests = List<Map<String, dynamic>>.from(requests);
 
-
     // Check for cancellations in existing rideRequests
     for (var existingRequest in rideRequests) {
-      bool stillPending = newRequests.any((req) => req['_id'] == existingRequest['_id']);
+      bool stillPending = newRequests.any((req) => req['_id'].toHexString() == existingRequest['_id'].toHexString());
       if (!stillPending) {
         // Request is no longer in pending requests, check if it was cancelled
-        var cancelledRequest = await collection.findOne(mongo.where.eq('_id', existingRequest['_id'] as mongo.ObjectId));
+        var cancelledRequest = await collection.findOne(mongo.where.id(existingRequest['_id']));
         if (cancelledRequest != null && cancelledRequest['status'] == 'cancelled') {
           _showPassengerCancelledNotification(cancelledRequest);
         }
       }
     }
 
-
     setState(() {
       rideRequests = newRequests;
     });
   }
 
+
+  void _startListeningForRideRequests() {
+    if (_rideRequestTimer != null && _rideRequestTimer!.isActive) {
+      return; // Timer already active
+    }
+    _rideRequestTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      _listenForRideRequests();
+    });
+  }
 
   void _showPassengerCancelledNotification(Map<String, dynamic> request) {
     Get.snackbar(
