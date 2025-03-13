@@ -194,7 +194,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // 🔹 Extract polyline data first
+        // 🔹 Extract polyline data
         final geometry = data['routes'][0]['geometry'];
         final decodedPolyline = decodePolyline(geometry);
 
@@ -209,13 +209,20 @@ class _HomeTabPageState extends State<HomeTabPage> {
         // 🔹 Extract route details
         final double distanceDecimal = data['routes'][0]['summary']['distance'] / 1000; // in km
         final double durationDecimal = data['routes'][0]['summary']['duration'] / 60;   // in minutes
-        final double costDecimal = distanceDecimal * 15;
+
+        // ✅ Cost Calculation
+        double baseFare = 15.0;
+        double extraFarePerKm = 10.0;
+        double radiusLimit = 2.5; // Radius in km
+
+        double costDecimal = (distanceDecimal <= radiusLimit)
+            ? baseFare
+            : baseFare + ((distanceDecimal - radiusLimit) * extraFarePerKm);
 
         // ✅ Format to two decimal places as strings
         String distance = distanceDecimal.toStringAsFixed(2);
         String duration = durationDecimal.toStringAsFixed(2);
         String cost = costDecimal.toStringAsFixed(2);
-
 
         // 🔹 Show confirmation inside setState() after a delay
         Future.delayed(Duration(seconds: 5), () {
@@ -233,6 +240,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
       print("❌ Error fetching route: $e");
     }
   }
+
 
   Future<void> saveRideRequest(
       MongoDbModelUser selectedDriver, String distance, String duration, String cost) async {
