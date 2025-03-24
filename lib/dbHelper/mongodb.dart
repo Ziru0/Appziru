@@ -96,33 +96,31 @@ class MongoDatabase {
   }
 
   // Update user data
-  static Future<String> updateOne(String firebaseId, String fullname, String address, String number, Map<Object, dynamic> updatedData) async {
+  static Future<String> updateOne(String firebaseId, String fullname, String address, String number, Map<String, dynamic> updatedData) async {
     try {
       var modifier = ModifierBuilder()
         ..set('fullname', fullname)
         ..set('address', address)
         ..set('number', number);
 
-      if (updatedData.containsKey('role')) {
-        modifier.set('role', updatedData['role']);
-      }
-
       updatedData.forEach((key, value) {
-        modifier.set(key as String, value);
+        modifier.set(key, value);  // 🔹 Now `key` is always a `String`
       });
 
       var result = await userCollection.updateOne(
-          where.eq('firebaseId', firebaseId),
-          modifier
+        where.eq('firebaseId', firebaseId),
+        modifier,
       );
 
       if (result.isSuccess) {
+        print("✅ User updated successfully: $updatedData");
         return "Document Updated Successfully";
       } else {
+        print("❌ Failed to update user: $firebaseId");
         return "Failed to Update Document";
       }
     } catch (e) {
-      // print(e.toString());
+      print("❌ Update Error: $e");
       return e.toString();
     }
   }
@@ -142,7 +140,6 @@ class MongoDatabase {
 
     await collection.insert(requestData);
   }
-
 
   static Future<bool> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {
     var collection = db.collection('users');
@@ -239,38 +236,126 @@ class MongoDatabase {
     }
   }
 
-  static Future<List<Map<String, dynamic>>> getDriverRides(String firebaseId) async {
+  static Future<List<Map<String, dynamic>>> getDriverActivityRides(String firebaseId) async {
     try {
       var usersCollection = db.collection('ziru');
       var requestsCollection = db.collection('requests');
 
       var user = await usersCollection.findOne(where.eq("firebaseId", firebaseId));
 
-      if (user == null || !user.containsKey('driverId')) {
-        print("❌ No user found with Firebase ID: $firebaseId");
+      if (user == null || user['driverId'] == null) {
+        print("❌ No valid driverId found for Firebase ID: $firebaseId");
         return [];
       }
 
-      String driverId = user['driverId'];
+      String driverId = user['driverId'].toString();
       print("✅ Found driverId: $driverId");
 
       final rides = await requestsCollection
-          .find(where.eq("driverId", driverId).oneFrom("status", ["accepted", "completed", "failed"])) // Include 'accepted'
+          .find(where.eq("driverId", driverId).oneFrom("status", ["completed", "failed"]))
           .toList();
 
-      List<Map<String, dynamic>> rideList = rides.map((ride) => ride as Map<String, dynamic>).toList();
+      print("📌 Raw Ride Data: $rides");
 
-      print("📊 Ride requests found: $rideList");
+      return rides.map((ride) {
+        String safeDistance = ride["distance"]?.toString() ?? "0.0";
+        String safeDuration = ride["duration"]?.toString() ?? "0 min";
+        String safeCost = ride["cost"] != null
+            ? (double.tryParse(ride["cost"].toString())?.toStringAsFixed(2) ?? "0.00")
+            : "0.00";
+        String safeStatus = ride["status"]?.toString() ?? "unknown";
 
-      return rideList;
-    } catch (e) {
+        print("🚀 Processed Ride: Distance=$safeDistance, Duration=$safeDuration, Cost=$safeCost, Status=$safeStatus");
+
+        return {
+          "distance": safeDistance,
+          "duration": safeDuration,
+          "cost": safeCost,
+          "status": safeStatus,
+        };
+      }).toList();
+    } catch (e, stacktrace) {
       print("❌ Error fetching rides: $e");
+      print("Stacktrace: $stacktrace");
       return [];
     }
   }
 
+  static Future<void> updateDriverLocation(String driverId, Map<String, dynamic> locationData) async {
+    try {
+      var driverCollection = db.collection('driverlocation'); // Ensure the correct collection
 
+      var result = await driverCollection.updateOne(
+        where.eq("driverId", driverId),
+        modify.set("latitude", locationData["latitude"])
+            .set("longitude", locationData["longitude"])
+            .set("lastUpdated", locationData["lastUpdated"]),
+        upsert: true, // Creates a new document if it doesn't exist
+      );
 
+      if (result.isSuccess) {
+        print("✅ Driver location updated successfully in MongoDB!");
+      } else {
+        print("⚠️ No changes made to the driver location.");
+      }
+    } catch (e) {
+      print("❌ Error updating driver location: $e");
+    }
+  }
 
+  static Future<void> insertPendingDriver(Map<String, dynamic> driverData) async {
+    if (db == null) {
+      await connect(); // Ensure the connection is established before accessing the collection
+    }
+
+    var collection = db.collection('pending-driver');
+
+    var result = await collection.insertOne(driverData);
+
+    if (result.isSuccess) {
+      print("✅ Pending driver inserted successfully!");
+    } else {
+      print("❌ Failed to insert pending driver.");
+    }
+  }
+
+  // ✅ Fetch completed ride requests using driverId as a string
+  static Future<List<Map<String, dynamic>>> getCompletedRequests(ObjectId driverId) async {
+    try {
+      var collection = db.collection("requests");
+
+      var driverId = "67a4142cb10a9cc0a7000000"; // Keep driverId as a String
+
+      var completedRequests = await collection.find({
+        "driverId": driverId, // Ensure driverId is treated as a String
+        "status": "completed"
+      }).toList();
+
+      print("✅ Completed Requests for Driver ($driverId): $completedRequests");
+
+      return completedRequests.cast<Map<String, dynamic>>();
+    } catch (e) {
+      print("❌ Error fetching completed requests: $e");
+      return [];
+    }
+  }
+
+  // ✅ Fetch all requests for debugging
+  static Future<List<Map<String, dynamic>>> getAllRequests(ObjectId driverId) async {
+    try {
+      var collection = db.collection("requests");
+
+      var requests = await collection.find({
+        "driverId": driverId, // ✅ Query using ObjectId
+      }).toList();
+
+      print("📌 All Requests for Driver ($driverId): $requests");
+
+      return requests.cast<Map<String, dynamic>>();
+    } catch (e) {
+      print("❌ Error fetching all requests: $e");
+      return [];
+    }
+  }
 
 }

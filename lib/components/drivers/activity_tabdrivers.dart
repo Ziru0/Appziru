@@ -3,73 +3,53 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../../dbHelper/mongodb.dart';
 
-class DriverActivityPage extends StatefulWidget {
-  const DriverActivityPage({super.key});
+class ActivityPage extends StatefulWidget {
+  final bool isDriver; // Flag to determine if the user is a driver or passenger
+  const ActivityPage({super.key, required this.isDriver});
 
   @override
-  State<DriverActivityPage> createState() => _DriverActivityPageState();
+  State<ActivityPage> createState() => _ActivityPageState();
 }
 
-class _DriverActivityPageState extends State<DriverActivityPage> {
+class _ActivityPageState extends State<ActivityPage> {
   bool _isLoading = true;
   List<Map<String, dynamic>> rideHistory = [];
-  Map<String, dynamic>? profileData;
-
 
   @override
   void initState() {
     super.initState();
-    fetchDriverHistory();
-    _fetchProfileData();
-
+    fetchRideHistory();
   }
 
-
-
-// In your DriverActivityPage:
-  Future<void> fetchDriverHistory() async {
+  Future<void> fetchRideHistory() async {
     try {
-      String? driverId = FirebaseAuth.instance.currentUser?.uid; // Firebase UID
-      if (driverId == null) {
+      String? firebaseId = FirebaseAuth.instance.currentUser?.uid;
+      if (firebaseId == null) {
         setState(() => _isLoading = false);
         return;
       }
 
-      List<Map<String, dynamic>> rides = await MongoDatabase.getDriverRides(driverId);
+      // Fetch rides based on user type
+      List<Map<String, dynamic>> rides = widget.isDriver
+          ? await MongoDatabase.getDriverActivityRides(firebaseId)
+          : await MongoDatabase.getPassengerRides(firebaseId);
 
       setState(() {
         rideHistory = rides;
         _isLoading = false;
       });
     } catch (e) {
+      print("❌ Error fetching ride history: $e");
       setState(() => _isLoading = false);
     }
   }
-
-
-
-  Future<void> _fetchProfileData() async {
-    try {
-      var user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        String firebaseId = user.uid;
-        var data = await MongoDatabase.getOne(firebaseId); // Fetch data based on firebaseId
-        setState(() {
-          profileData = data;
-        });
-      }
-    } catch (e) {
-      // print('Error fetching profile data: $e');
-    }
-  }
-  final user=FirebaseAuth.instance.currentUser;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          "Ride Activity",
+          widget.isDriver ? "Driver Activity" : "Passenger Activity",
           style: GoogleFonts.poppins(
             fontSize: 18,
             color: Colors.white,
@@ -96,8 +76,6 @@ class _DriverActivityPageState extends State<DriverActivityPage> {
               style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 20),
-
-            // Ride History List
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -113,17 +91,16 @@ class _DriverActivityPageState extends State<DriverActivityPage> {
                 separatorBuilder: (context, index) => const Divider(),
                 itemBuilder: (context, index) {
                   var ride = rideHistory[index];
-
                   return buildActivityItem(
                     icon: ride['status'] == 'completed'
                         ? Icons.check_circle
                         : Icons.cancel,
-                    distance: ride['distance'].toString(),  // ✅ Directly use 'distance'
-                    duration: ride['duration'].toString(),  // ✅ Directly use 'duration'
-                    cost: (ride['cost'] != null)
+                    distance: ride['distance']?.toString() ?? '0.0',
+                    duration: ride['duration']?.toString() ?? '0 min',
+                    cost: ride['cost'] != null
                         ? double.parse(ride['cost'].toString()).toStringAsFixed(2)
                         : '0.00',
-                    status: ride['status'],
+                    status: ride['status'] ?? 'unknown',
                   );
                 },
               ),
@@ -134,7 +111,6 @@ class _DriverActivityPageState extends State<DriverActivityPage> {
     );
   }
 
-  // Widget for displaying ride details
   Widget buildActivityItem({
     required IconData icon,
     required String distance,

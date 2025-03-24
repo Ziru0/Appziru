@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lage/components/drivers/driversEarningPage.dart';
 import '../tabpages/services_tab.dart';
 import '../tabpages/profile_tab.dart';
 import '../tabpages/activity_tab.dart';
@@ -41,7 +42,7 @@ class _State extends State<HomeScreenDriver> with SingleTickerProviderStateMixin
         controller: tabController,
         children: const [
           DriverHomePage(),
-          ServicesTabPage(),
+          EarningsPage(),
           RideActivityPage(),
           ProfileTabPage(),
         ],
@@ -55,7 +56,7 @@ class _State extends State<HomeScreenDriver> with SingleTickerProviderStateMixin
 
           BottomNavigationBarItem(
             icon: Icon(Icons.credit_card),
-            label:  "Services" ,
+            label:  "Earnings" ,
           ),
 
           BottomNavigationBarItem(

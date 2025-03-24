@@ -9,6 +9,7 @@ import 'package:lage/components/tabpages/terms_condition.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/MongoDBModeluser.dart';
 import '../../dbHelper/mongodb.dart';
 
@@ -71,12 +72,65 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   Timer? _rideAcceptanceTimer; // Timer for ride acceptance listener
 
+  List<LatLng> _driverLocations = []; // ✅ Store all driver markers
+  List<Map<String, dynamic>> _driverData = [];
+
+
   @override
   void initState() {
     super.initState();
     mapController = MapController();
     _fetchProfileData();
+    _fetchAllDriverPinnedLocations(); // ✅ Fetch all drivers' locations
   }
+
+  Future<void> _fetchAllDriverPinnedLocations() async {
+    try {
+      print("🔍 Fetching all drivers' pinned locations...");
+
+      // Ensure MongoDB is connected
+      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
+        print("🔄 Reconnecting to MongoDB...");
+        await MongoDatabase.connect();
+      }
+
+      var collection = MongoDatabase.db.collection("pinned_locations");
+      var results = await collection.find().toList();
+
+      if (results.isNotEmpty) {
+        print("✅ Found ${results.length} pinned locations");
+
+        List<LatLng> locations = [];
+        List<Map<String, dynamic>> driverData = []; // Store full data (including names)
+
+        for (var result in results) {
+          if (result.containsKey("latitude") && result.containsKey("longitude")) {
+            double lat = (result["latitude"] as num).toDouble();
+            double lng = (result["longitude"] as num).toDouble();
+            locations.add(LatLng(lat, lng));
+
+            driverData.add({
+              "fullname": result["fullname"] ?? "Unknown",
+              "latitude": lat,
+              "longitude": lng,
+            });
+          }
+        }
+
+        setState(() {
+          _driverLocations = locations;
+          _driverData = driverData; // Save driver info for later use
+        });
+
+        print("📍 Updated map with ${_driverLocations.length} driver locations");
+      } else {
+        print("🚨 No pinned locations found.");
+      }
+    } catch (e) {
+      print("❌ Error fetching drivers' locations: $e");
+    }
+  }
+
 
   void _listenForRideAcceptance() async {
     if (profileData == null) return;
@@ -124,7 +178,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
       colorText: Colors.white,
     );
   }
-
 
   Future<List<String>> fetchPlaceSuggestions(String query) async {
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
@@ -241,7 +294,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-
   Future<void> saveRideRequest(
       MongoDbModelUser selectedDriver, String distance, String duration, String cost) async {
 
@@ -278,9 +330,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
       print("🚨 Failed to fetch user details!");
     }
   }
-
-
-
 
   List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
@@ -378,7 +427,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -387,7 +435,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
           FlutterMap(
             mapController: mapController,
             options: MapOptions(
-              initialCenter: LatLng(8.5872, 123.3403), // Coordinates for Dipolog City, PH
+              initialCenter: LatLng(8.5872, 123.3403), // Example: Dipolog City, PH
               initialZoom: 15,
             ),
             children: [
@@ -395,10 +443,45 @@ class _HomeTabPageState extends State<HomeTabPage> {
                 urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 subdomains: ['a', 'b', 'c'],
               ),
+              MarkerLayer(
+                markers: _driverLocations.map((location) {
+                  // Find the driver info for this location
+                  var driverInfo = _driverData.firstWhere(
+                        (data) => data["latitude"] == location.latitude && data["longitude"] == location.longitude,
+                    orElse: () => {},
+                  );
+
+                  return Marker(
+                    point: location,
+                    width: 100, // Increased width to accommodate text
+                    height: 80,  // Increased height for better layout
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(color: Colors.black26, blurRadius: 4),
+                            ],
+                          ),
+                          child: Text(
+                            driverInfo.isNotEmpty ? driverInfo["fullname"] ?? "Unknown Driver" : "Unknown Driver",
+                            style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        Icon(Icons.car_rental, color: Colors.green, size: 50),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+
               PolylineLayer(
                 polylines: [
                   Polyline(
-                    points: polylinePoints, // Use the polyline points here
+                    points: polylinePoints, // Use your existing polyline data
                     color: Colors.blue,
                     strokeWidth: 4.0,
                   ),
@@ -856,7 +939,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
               fontWeight: FontWeight.w700,
             ),
             textWidget(
-              text: 'Est. Fare: ₱$cost',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
+              text: 'Est. Fare: Php $cost',  // ✅ Display formatted string directly - NO toStringAsFixed(2)
               color: Colors.white,
               fontWeight: FontWeight.w500,
             ),

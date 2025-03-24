@@ -72,7 +72,7 @@ class _ProfilesetupState extends State<Profilesetup> {
   }
 
 
-  // Save profile setup and navigate to the "Wrapper" page
+  /// Save profile setup and navigate to the "Wrapper" page
   Future<void> _completeProfileSetup() async {
     try {
       if (selectedRole == null) {
@@ -91,7 +91,7 @@ class _ProfilesetupState extends State<Profilesetup> {
       }
 
       String firebaseId = user.uid;
-      String? carInfo; // Variable to store car info
+      String email = user.email ?? ""; // ✅ Get the email properly
 
       // Upload image before inserting data
       String? imageUrl;
@@ -100,11 +100,9 @@ class _ProfilesetupState extends State<Profilesetup> {
       }
 
       if (selectedRole == 'Driver') {
-        carInfo =
-            cabnumberController.text ;
-    cabcolorController.text; // Clear car info controller
-    cabbrandController.text;
-        if (carInfo.isEmpty) {
+        if (cabnumberController.text.isEmpty ||
+            cabcolorController.text.isEmpty ||
+            cabbrandController.text.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Car information is required for drivers.")),
           );
@@ -112,18 +110,17 @@ class _ProfilesetupState extends State<Profilesetup> {
         }
       }
 
-
       await _insertData(
-        firebaseId,
-        fnameController.text,
-        numberController.text,
-        addressController.text,
-        selectedRole!,
-        imageUrl, // Pass uploaded image URL
-          cabnumberController.text ,
-          cabcolorController.text, // Clear car info controller
+          firebaseId,
+          email, // ✅ Pass email
+          fnameController.text,
+          numberController.text,
+          addressController.text,
+          selectedRole!,
+          imageUrl,
+          cabcolorController.text,
+          cabnumberController.text,
           cabbrandController.text
-
       );
 
       if (mounted) {
@@ -140,15 +137,20 @@ class _ProfilesetupState extends State<Profilesetup> {
   }
 
 
+
   Future<void> _insertData(
-      String firebaseId, String fName, String number, String address, String role, String? imageUrl, String? cabcolor,String? cabnumber,String? cabbrand) async {
+      String firebaseId, String email, String fName, String number, String address,
+      String role, String? imageUrl, String? cabColor, String? cabNumber, String? cabBrand) async {
+
+    print("🔍 Checking existing user with firebaseId: $firebaseId");
 
     var userData = await MongoDatabase.getOne(firebaseId);
+    print("📊 User Data Before Insert: $userData");
 
     if (userData == null) {
-      // If the user doesn't exist, insert a new one
       var newUser = {
         "firebaseId": firebaseId,
+        "email": email, // ✅ Save email for both drivers and passengers
         "fullname": fName,
         "number": number,
         "address": address,
@@ -158,43 +160,55 @@ class _ProfilesetupState extends State<Profilesetup> {
         "passengerId": null,
       };
 
-      await MongoDatabase.insertUser(newUser);  // Call insert function
-      userData = await MongoDatabase.getOne(firebaseId); // Fetch user again
+      print("📝 Inserting new user: $newUser");
+      await MongoDatabase.insertUser(newUser);
+
+      userData = await MongoDatabase.getOne(firebaseId);
+      print("📊 User Data After Insert: $userData");
     }
 
     if (userData == null || !userData.containsKey('_id')) {
+      print("❌ Error: User not found in database after insert.");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Error: User not found in database after insert.")),
       );
       return;
     }
 
-    mongo.ObjectId objectId = userData['_id']; // Extract the MongoDB ObjectId
+    mongo.ObjectId objectId = userData['_id'];
+    print("🔍 MongoDB ObjectId: $objectId");
 
-    Map<String, dynamic> updatedData = {
-      "role": role,
-      "profileImage": imageUrl,
-      "driverId": null,
-      "passengerId": null,
-    };
-
-    if (role == "Driver") {
-      updatedData["driverId"] = objectId;
-      // Insert car info into a new collection
-      var driverInfo = {
-        "firebaseId": firebaseId,
-        "cabnumber": cabnumber,
-        "cabcolor": cabcolor,
-        "cabbrand": cabbrand,
-
-        "userId": objectId, // Link to the user document
+    if (role == "Passenger") {
+      print("🛑 Registering as Passenger - Updating passengerId.");
+      var updatedData = {
+        "passengerId": objectId,
+        "role": role,
       };
-      await MongoDatabase.insertDriver(driverInfo); // Assume this function exists in MongoDatabase
-    } else if (role == "Passenger") {
-      updatedData["passengerId"] = objectId;
+      await MongoDatabase.updateOne(firebaseId, fName, address, number, updatedData);
     }
 
-    await MongoDatabase.updateOne(firebaseId, fName, address, number, updatedData);
+    if (role == "Driver") {
+      print("🚗 Registering as Driver - Saving to pending drivers.");
+
+      var pendingDriverData = {
+        "firebaseId": firebaseId,
+        "email": email, // ✅ Ensure email is saved for drivers
+        "fullname": fName,
+        "number": number,
+        "address": address,
+        "role": role,
+        "profileImage": imageUrl,
+        "cabnumber": cabNumber,
+        "cabcolor": cabColor,
+        "cabbrand": cabBrand,
+        "status": "pending",
+        "userId": objectId,
+      };
+
+      await MongoDatabase.insertPendingDriver(pendingDriverData);
+    }
+
+    print("✅ Profile updated successfully");
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("Profile updated successfully")),
@@ -202,8 +216,6 @@ class _ProfilesetupState extends State<Profilesetup> {
 
     _clearAll();
   }
-
-
 
 
   // Clear all form fields
