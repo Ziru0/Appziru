@@ -10,8 +10,6 @@ MongoDbModelUser mongoDbModelFromJson(String str) {
   }
 }
 
-
-
 String mongoDbModelToJson(MongoDbModelUser data) => json.encode(data.toJson());
 
 class MongoDbModelUser {
@@ -26,6 +24,8 @@ class MongoDbModelUser {
   String? passengerId; // For passengers
 
   Map<String, dynamic>? coordinates; // GeoJSON format for coordinates
+  double? topLevelLatitude; // To store latitude if it's a top-level field
+  double? topLevelLongitude; // To store longitude if it's a top-level field
   double? distance; // Added field
   double? duration; // Added field
   double? cost; // Added field
@@ -41,6 +41,8 @@ class MongoDbModelUser {
     String? driverId,
     String? passengerId,
     this.coordinates,
+    this.topLevelLatitude,
+    this.topLevelLongitude,
     this.distance, // Added
     this.duration, // Added
     this.cost, // Added
@@ -70,6 +72,8 @@ class MongoDbModelUser {
       driverId: json["driverId"] ?? objectId.oid,
       passengerId: json["passengerId"] ?? objectId.oid,
       coordinates: json["coordinates"],
+      topLevelLatitude: json["latitude"]?.toDouble(), // Capture top-level latitude
+      topLevelLongitude: json["longitude"]?.toDouble(), // Capture top-level longitude
       distance: json["distance"]?.toDouble(),
       duration: json["duration"]?.toDouble(),
       cost: json["cost"]?.toDouble(),
@@ -90,8 +94,40 @@ class MongoDbModelUser {
         "driverId": driverId,
         "passengerId": passengerId,
         "coordinates": coordinates,
+        "latitude": topLevelLatitude, // Include top-level latitude in toJson
+        "longitude": topLevelLongitude, // Include top-level longitude in toJson
         "distance": distance,
         "duration": duration,
         "cost": cost,
       };
+
+  double? get latitude {
+    // First check if top-level latitude exists
+    if (topLevelLatitude != null) {
+      return topLevelLatitude;
+    }
+    // If not, check for the nested coordinates structure
+    if (coordinates != null &&
+        coordinates!.containsKey("coordinates") &&
+        coordinates!["coordinates"] is List &&
+        coordinates!["coordinates"].length == 2) {
+      return (coordinates!["coordinates"][1] as num?)?.toDouble(); // Latitude is second
+    }
+    return null;
+  }
+
+  double? get longitude {
+    // First check if top-level longitude exists
+    if (topLevelLongitude != null) {
+      return topLevelLongitude;
+    }
+    // If not, check for the nested coordinates structure
+    if (coordinates != null &&
+        coordinates!.containsKey("coordinates") &&
+        coordinates!["coordinates"] is List &&
+        coordinates!["coordinates"].length == 2) {
+      return (coordinates!["coordinates"][0] as num?)?.toDouble(); // Longitude is first
+    }
+    return null;
+  }
 }

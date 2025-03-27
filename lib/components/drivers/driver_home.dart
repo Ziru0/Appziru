@@ -39,6 +39,7 @@ class DriverHomePageState extends State<DriverHomePage> {
     super.initState();
     mapController = MapController();
     _fetchProfileData();
+    _loadPinnedLocations();
   }
 
   @override
@@ -47,6 +48,7 @@ class DriverHomePageState extends State<DriverHomePage> {
     _pinLocationController.dispose(); // Dispose the controller
     super.dispose();
   }
+
   Future<String?> getCurrentDriverId() async {
     if (profileData == null) {
       print("❌ profileData is null in getCurrentDriverId"); // Debugging print
@@ -329,140 +331,6 @@ class DriverHomePageState extends State<DriverHomePage> {
     });
   }
 
-  Widget _buildPinLocationFAB() {
-    return Positioned(
-      bottom: 20,
-      right: 20, // Move to bottom right
-      child: FloatingActionButton(
-        heroTag: "pinLocationFab",
-        onPressed: _togglePinLocationInputVisibility,
-        backgroundColor: Colors.grey,
-        child: Icon(Icons.location_pin),
-      ),
-    );
-  }
-
-  Widget _buildAvailabilityFAB() {
-    return Positioned(
-      bottom: 20,
-      left: 20, // Move to bottom left
-      child: FloatingActionButton(
-        heroTag: "availabilityFab",
-        onPressed: _toggleAvailability,
-        backgroundColor: isAvailable ? Colors.green : Colors.red,
-        child: Icon(isAvailable ? Icons.check : Icons.close),
-      ),
-    );
-  }
-
-// Pin Location Input (Bottom Right)
-  LatLng? _searchedLocation; // Store searched location
-
-  Future<void> _savePinnedLocationToDatabase(String driverId, String fullname, LatLng location) async {
-    try {
-      // 🔹 Ensure MongoDB is connected
-      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
-        await MongoDatabase.connect(); // Reconnect if needed
-      }
-
-      // 🔹 Reference the collection
-      var collection = MongoDatabase.db.collection("pinned_locations");
-
-      // 🔹 Insert pinned location data
-      var result = await collection.insertOne({
-        "driverId": driverId,
-        "fullname": fullname,
-        "locationName": _pinLocationController.text, // Save the location name for easier deletion
-        "latitude": location.latitude,
-        "longitude": location.longitude,
-        "timestamp": DateTime.now().toIso8601String(),
-      });
-
-      if (result.isSuccess) {
-        print("✅ Pinned location saved successfully!");
-      } else {
-        print("❌ Failed to save pinned location.");
-      }
-    } catch (e) {
-      print("❌ Error saving pinned location: $e");
-    }
-  }
-
-
-  Future<void> _searchLocation(String query) async {
-    try {
-      print("🔎 Searching location for query: $query");
-      List<Location> locations = await locationFromAddress(query);
-
-      if (locations.isNotEmpty) {
-        Location location = locations.first;
-        setState(() {
-          _searchedLocation = LatLng(location.latitude, location.longitude);
-          _pinLocationController.text = query;
-          mapController.move(_searchedLocation!, 15);
-        });
-
-        print("✅ Location found: ${location.latitude}, ${location.longitude}");
-
-        // Fetch driver ID dynamically
-        String? driverId = await getCurrentDriverId();
-        String? driverFullname = profileData?['fullname']; // Get fullname from profileData
-
-        if (driverId != null && driverFullname != null) {
-          await _savePinnedLocationToDatabase(driverId, driverFullname, _searchedLocation!);
-        } else {
-          print("❌ Error: Driver ID or Fullname not found!");
-        }
-      } else {
-        print("❌ No locations found for query: $query");
-      }
-    } catch (e) {
-      print("❌ Error searching location: $e");
-    }
-  }
-
-  Future<void> _removePinnedLocation(String locationName) async {
-    if (locationName.isEmpty) return;
-
-    try {
-      print("🗑 Removing pinned location: $locationName");
-
-      // 🔹 Fetch the driver ID
-      String? driverId = await getCurrentDriverId();
-      if (driverId == null) {
-        print("❌ Error: Driver ID not found!");
-        return;
-      }
-
-      // 🔹 Ensure MongoDB is connected
-      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
-        await MongoDatabase.connect(); // Reconnect if needed
-      }
-
-      // 🔹 Reference the collection
-      var collection = MongoDatabase.db.collection("pinned_locations");
-
-      // 🔹 Delete the document based on driverId and location name
-      var result = await collection.deleteOne({
-        "driverId": driverId,
-        "fullname": profileData?['fullname'],
-        "locationName": locationName
-      });
-
-      if (result.isSuccess) {
-        setState(() {
-          _pinLocationController.clear();
-          _searchedLocation = null;
-        });
-        print("✅ Location removed successfully!");
-      } else {
-        print("❌ Failed to remove location.");
-      }
-    } catch (e) {
-      print("❌ Error removing pinned location: $e");
-    }
-  }
-
   Future<List<String>> fetchPlaceSuggestions(String query) async {
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
     final url =
@@ -507,77 +375,188 @@ class DriverHomePageState extends State<DriverHomePage> {
       _suggestions = []; // Clear suggestions after selection
     });
   }
+// Pin Location Input (Bottom Right)
+  LatLng? _searchedLocation; // Store searched location
 
-  Widget _buildPinLocationInput() {
-    if (!isPinLocationInputVisible) {
-      return const SizedBox.shrink();
+  Future<void> _searchLocation(String query) async {
+    try {
+      print("🔎 Searching location for query: $query");
+      List<Location> locations = await locationFromAddress(query);
+
+      if (locations.isNotEmpty) {
+        Location location = locations.first;
+        setState(() {
+          _searchedLocation = LatLng(location.latitude, location.longitude);
+          _pinLocationController.text = query;
+          mapController.move(_searchedLocation!, 15);
+        });
+
+        print("✅ Location found: ${location.latitude}, ${location.longitude}");
+
+        // Fetch driver ID dynamically
+        String? driverId = await getCurrentDriverId();
+        String? driverFullname = profileData?['fullname']; // Get fullname from profileData
+
+        if (driverId != null && driverFullname != null) {
+          await _savePinnedLocationToDatabase(driverId, driverFullname, _searchedLocation!);
+        } else {
+          print("❌ Error: Driver ID or Fullname not found!");
+        }
+      } else {
+        print("❌ No locations found for query: $query");
+      }
+    } catch (e) {
+      print("❌ Error searching location: $e");
     }
-    return Positioned(
-      bottom: 80,
-      right: 20,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Card(
-            elevation: 5,
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: SizedBox(
-                width: Get.width * 0.5,
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: _pinLocationController,
-                      decoration: InputDecoration(
-                        hintText: 'Search location...',
-                        border: InputBorder.none,
-                        suffixIcon: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.search),
-                              onPressed: () => _searchLocation(_pinLocationController.text),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.remove_circle, color: Colors.red),
-                              onPressed: () => _removePinnedLocation(_pinLocationController.text),
-                            ),
-                          ],
-                        ),
-                      ),
-                      style: GoogleFonts.poppins(),
-                      onChanged: _onTextChanged, // Fetch suggestions as user types
-                      onSubmitted: (query) => _searchLocation(query),
-                    ),
-                    if (_suggestions.isNotEmpty)
-                      Container(
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(5),
-                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 5)],
-                        ),
-                        child: Column(
-                          children: _suggestions
-                              .map((suggestion) => ListTile(
-                            title: Text(suggestion),
-                            onTap: () => _onSuggestionSelected(suggestion),
-                          ))
-                              .toList(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
+
+  Future<void> _savePinnedLocationToDatabase(String driverId, String fullname, LatLng location) async {
+    try {
+      // 🔹 Ensure MongoDB is connected
+      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
+        await MongoDatabase.connect(); // Reconnect if needed
+      }
+
+      // 🔹 Reference the collection
+      var collection = MongoDatabase.db.collection("pinned_locations");
+
+      // 🔹 Insert pinned location data
+      var result = await collection.insertOne({
+        "driverId": driverId,
+        "fullname": fullname,
+        "locationName": _pinLocationController.text.toLowerCase(), // Convert to lowercase
+        "latitude": location.latitude,
+        "longitude": location.longitude,
+        "timestamp": DateTime.now().toIso8601String(),
+      });
+
+
+      if (result.isSuccess) {
+        print("✅ Pinned location saved successfully!");
+      } else {
+        print("❌ Failed to save pinned location.");
+      }
+    } catch (e) {
+      print("❌ Error saving pinned location: $e");
+    }
+  }
+
+  Future<void> _removePinnedLocation(String locationName) async {
+    if (locationName.isEmpty) {
+      print("❌ Cannot remove: Location name is empty.");
+      return;
+    }
+
+    try {
+      String? driverId = await getCurrentDriverId();
+      if (driverId == null) {
+        print("❌ Driver ID is null. Cannot proceed with deletion.");
+        return;
+      }
+
+      print("🔍 Removing location: '$locationName' for Driver ID: $driverId");
+
+      // Ensure database is connected
+      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
+        print("⚠️ Database not connected. Attempting to reconnect...");
+        await MongoDatabase.connect();
+      }
+
+      var collection = MongoDatabase.db.collection("pinned_locations");
+
+      // Convert to lowercase for consistency
+      String formattedLocationName = locationName.toLowerCase();
+
+      // Check if the location exists first
+      var existingLocation = await collection.findOne({
+        "driverId": driverId,
+        "locationName": formattedLocationName
+      });
+
+      if (existingLocation == null) {
+        print("❌ No matching location found in DB for removal.");
+        return;
+      }
+
+      // Perform delete operation
+      var result = await collection.deleteOne({
+        "driverId": driverId,
+        "locationName": formattedLocationName
+      });
+
+      if (result.isAcknowledged && result.deletedCount > 0) {
+        print("✅ Location '$locationName' removed successfully from DB!");
+
+        // 🔹 Refresh pinned locations from the database
+        await _loadPinnedLocations();
+      } else {
+        print("❌ Failed to remove location from DB. Deletion query might not match.");
+      }
+    } catch (e) {
+      print("❌ Error removing pinned location: $e");
+    }
+  }
+
+  bool isPinnedListVisible = false; // Add this to control visibility
+
+  void _togglePinnedListVisibility() {
+    setState(() {
+      isPinnedListVisible = !isPinnedListVisible;
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> _fetchPinnedLocations() async {
+    try {
+      // Ensure MongoDB is connected
+      if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
+        await MongoDatabase.connect();
+      }
+
+      // Fetch driver ID
+      String? driverId = await getCurrentDriverId();
+      if (driverId == null) return [];
+
+      // Reference the collection
+      var collection = MongoDatabase.db.collection("pinned_locations");
+
+      // Query for the driver's pinned locations
+      var results = await collection.find({"driverId": driverId}).toList();
+
+      return results;
+    } catch (e) {
+      print("❌ Error fetching pinned locations: $e");
+      return [];
+    }
+  }
+
+  List<Marker> _pinnedMarkers = [];
+  List<Map<String, dynamic>> _pinnedLocations = []; // Stores pinned locations
+
+  Future<void> _loadPinnedLocations() async {
+    List<Map<String, dynamic>> locations = await _fetchPinnedLocations(); // Ensure fresh data
+
+    setState(() {
+      _pinnedLocations = locations;
+      _pinnedMarkers = locations.map((location) {
+        return Marker(
+          point: LatLng(location['latitude'], location['longitude']),
+          width: 40,
+          height: 40,
+          child: const Icon(Icons.location_pin, color: Colors.red, size: 30),
+        );
+      }).toList();
+    });
+
+    print("📌 Updated pinned locations: $_pinnedLocations"); // Debugging print
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
+    if (_pinnedMarkers.isEmpty) {
+      _loadPinnedLocations(); // Ensure pinned locations are reloaded
+    }
     return Scaffold(
       appBar: AppBar(title: Text("Driver Dashboard", style: GoogleFonts.poppins())),
       body: Stack(
@@ -593,6 +572,7 @@ class DriverHomePageState extends State<DriverHomePage> {
                 urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 subdomains: ['a', 'b', 'c'],
               ),
+
               if (_searchedLocation != null) // Show marker if a location is searched
                 MarkerLayer(
                   markers: [
@@ -623,11 +603,15 @@ class DriverHomePageState extends State<DriverHomePage> {
                   ],
                 ),
 
+              // Display polyline route
               PolylineLayer(
                 polylines: [
                   Polyline(points: polylinePoints, strokeWidth: 4.0, color: Colors.blue),
                 ],
               ),
+
+              // Display pinned locations
+              MarkerLayer(markers: _pinnedMarkers),
             ],
           ),
           buildProfileTile(
@@ -636,14 +620,43 @@ class DriverHomePageState extends State<DriverHomePage> {
           ),
           _buildRideRequestWidget(),
           _buildAcceptedRideWidget(),
-          _buildPinLocationInput(), // Now positioned at bottom right
-          _buildPinLocationFAB(),  // FAB for pinning location (Bottom Right)
-          _buildAvailabilityFAB(), // FAB for availability (Bottom Left)
+          _buildPinLocationPanel(),  // Now positioned at bottom right
+          _buildPinLocationFAB(),    // FAB for pinning location (Bottom Right)
+          _buildAvailabilityFAB(),   // FAB for availability (Bottom Left)
         ],
       ),
     );
   }
 
+  Widget _buildPinLocationFAB() {
+    return Positioned(
+      bottom: 20,
+      right: 20,
+      child: FloatingActionButton(
+        heroTag: "pinLocationFab",
+        onPressed: () {
+          setState(() {
+            isPinLocationInputVisible = !isPinLocationInputVisible;
+            isPinnedListVisible = !isPinnedListVisible; // Toggle both
+          });
+        },
+        backgroundColor: Colors.grey,
+        child: Icon(isPinnedListVisible ? Icons.close : Icons.location_pin),
+      ),
+    );
+  }
+  Widget _buildAvailabilityFAB() {
+    return Positioned(
+      bottom: 20,
+      left: 20, // Move to bottom left
+      child: FloatingActionButton(
+        heroTag: "availabilityFab",
+        onPressed: _toggleAvailability,
+        backgroundColor: isAvailable ? Colors.green : Colors.red,
+        child: Icon(isAvailable ? Icons.check : Icons.close),
+      ),
+    );
+  }
 
   bool isTermsAccepted = false;
 
@@ -751,7 +764,6 @@ class DriverHomePageState extends State<DriverHomePage> {
     );
   }
 
-
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
     return Positioned(
       top: 0,
@@ -828,5 +840,136 @@ class DriverHomePageState extends State<DriverHomePage> {
     );
   }
 
+
+  Widget _buildPinLocationPanel() {
+    if (!isPinLocationInputVisible && !isPinnedListVisible) {
+      return const SizedBox.shrink(); // Hide when neither is active
+    }
+
+    return Positioned(
+        bottom: 20,
+        left: 20,
+        right: 20,
+        child: Card(
+        elevation: 5,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    child: Padding(
+    padding: const EdgeInsets.all(16.0),
+    child: Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    // 🔹 Header with Close Button
+    Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+    Text("Manage Pinned Locations",
+    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
+    IconButton(
+    icon: const Icon(Icons.close, color: Colors.grey),
+    onPressed: () {
+    setState(() {
+    isPinLocationInputVisible = false;
+    isPinnedListVisible = false;
+    });
+    },
+    ),
+    ],
+    ),
+
+    const SizedBox(height: 12),
+
+    // 🔹 Search & Pin Location Input
+    TextField(
+    controller: _pinLocationController,
+    decoration: InputDecoration(
+    hintText: 'Search or Pin a Location...',
+    border: OutlineInputBorder(
+    borderRadius: BorderRadius.circular(8),
+    borderSide: BorderSide.none,
+    ),
+    filled: true,
+    fillColor: Colors.grey[100],
+    prefixIcon: const Icon(Icons.search, color: Colors.grey),
+    suffixIcon: _pinLocationController.text.isNotEmpty
+    ? IconButton(
+    icon: const Icon(Icons.clear, color: Colors.grey),
+    onPressed: () {
+    _pinLocationController.clear();
+    _onTextChanged(''); // Assuming _onTextChanged is defined in the parent
+    },
+    )
+        : null,
+    ),
+    style: GoogleFonts.poppins(),
+    onChanged: _onTextChanged, // Assuming _onTextChanged is defined in the parent
+    onSubmitted: (query) => _searchLocation(query),
+    ),
+
+    // 🔹 Location Suggestions
+    if (_suggestions.isNotEmpty)
+    Padding(
+    padding: const EdgeInsets.only(top: 8.0),
+    child: Material(
+    elevation: 2,
+    borderRadius: BorderRadius.circular(8),
+    child: ListView.builder(
+    shrinkWrap: true,
+    physics: const NeverScrollableScrollPhysics(),
+    itemCount: _suggestions.length,
+    itemBuilder: (context, index) {
+    final suggestion = _suggestions[index];
+    return ListTile(
+    title: Text(suggestion, style: GoogleFonts.poppins()),
+    onTap: () => _onSuggestionSelected(suggestion), // Assuming _onSuggestionSelected is defined in the parent
+    );
+    },
+    ),
+    ),
+    ),
+
+    const SizedBox(height: 16),
+
+    // 🔹 Pinned Locations List
+    if (_pinnedLocations.isNotEmpty)
+    Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+    Text("Pinned Locations",
+    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
+    const SizedBox(height: 8),
+    SizedBox(
+    height: 120, // Increased height for better visibility
+    child: ListView.builder(
+    shrinkWrap: true,
+    itemCount: _pinnedLocations.length,
+    itemBuilder: (context, index) {
+    final location = _pinnedLocations[index];
+    return Card(
+    elevation: 1,
+    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+    margin: const EdgeInsets.symmetric(vertical: 4),
+    child: ListTile(
+    title: Text(location['locationName'], style: GoogleFonts.poppins()),
+    subtitle: Text(
+    "Lat: ${location['latitude'].toStringAsFixed(2)}, Lng: ${location['longitude'].toStringAsFixed(2)}",
+    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
+    ),
+    trailing: IconButton(
+    icon: const Icon(Icons.delete_outline, color: Colors.red),
+    onPressed: () => _removePinnedLocation(location['locationName']),
+    ),
+    ),
+    );
+    },
+    ),
+    ),
+    ],
+    ),
+    ],
+    ),
+    ),
+    ),
+    );
+  }
 
 }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -9,7 +10,7 @@ import 'package:lage/components/tabpages/terms_condition.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
-import 'package:shared_preferences/shared_preferences.dart';
+import  'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/MongoDBModeluser.dart';
 import '../../dbHelper/mongodb.dart';
 
@@ -131,7 +132,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
-
   void _listenForRideAcceptance() async {
     if (profileData == null) return;
     var collection = MongoDatabase.db.collection('requests');
@@ -224,8 +224,10 @@ class _HomeTabPageState extends State<HomeTabPage> {
       return;
     }
 
+    print("📍 Passenger Location: ${startCoordinates?.latitude}, ${startCoordinates?.longitude}");
+
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
-    final url = 'https://api.openrouteservice.org/v2/directions/driving-car';
+      final url = 'https://api.openrouteservice.org/v2/directions/driving-car';
 
     final body = {
       "coordinates": [
@@ -394,38 +396,26 @@ class _HomeTabPageState extends State<HomeTabPage> {
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
 
-  Widget _buildRideAcceptedWidget() {
-    if (rideAcceptedDetails == null) return SizedBox();
+  double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+    const double R = 6371; // Earth radius in km
+    double dLat = (lat2 - lat1) * (pi / 180);
+    double dLon = (lon2 - lon1) * (pi / 180);
 
-    return Positioned(
-      bottom: 20,
-      left: 20,
-      right: 20,
-      child: Card(
-        elevation: 5,
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Ride Accepted!',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
-              ),
-              SizedBox(height: 8),
-              // You can display more details here if needed, like driver name etc.
-              Text('Your ride request has been accepted by a driver.'),
-              ElevatedButton( // Add Cancel Ride Button
-                onPressed: _cancelRide,
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: Text("Cancel Ride"),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    double a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1 * (pi / 180)) * cos(lat2 * (pi / 180)) *
+            sin(dLon / 2) * sin(dLon / 2);
+    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    double distance = R * c; // Distance in km
+
+    // ✅ Debugging: Print actual calculated distance
+    print("📏 Calculated Distance: ${distance.toStringAsFixed(3)} km "
+        "between ($lat1, $lon1) and ($lat2, $lon2)");
+
+    return distance;
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -445,7 +435,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
               ),
               MarkerLayer(
                 markers: _driverLocations.map((location) {
-                  // Find the driver info for this location
                   var driverInfo = _driverData.firstWhere(
                         (data) => data["latitude"] == location.latitude && data["longitude"] == location.longitude,
                     orElse: () => {},
@@ -477,7 +466,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
                   );
                 }).toList(),
               ),
-
               PolylineLayer(
                 polylines: [
                   Polyline(
@@ -488,23 +476,40 @@ class _HomeTabPageState extends State<HomeTabPage> {
                 ],
               ),
               MarkerLayer(
-                markers: markers.toList(),
+                markers: [
+                  ...markers, // Existing markers
+
+                  if (startCoordinates != null)
+                    Marker(
+                      point: startCoordinates!,
+                      width: 50,
+                      height: 50,
+                      child: Icon(Icons.location_on, color: Colors.blue, size: 30),
+                    ),
+
+                  if (endCoordinates != null)
+                    Marker(
+                      point: endCoordinates!,
+                      width: 50,
+                      height: 50,
+                      child: Icon(Icons.flag, color: Colors.red, size: 30),
+                    ),
+                ],
               ),
             ],
           ),
           buildProfileTile(
-            name: profileData?['fullname'] ?? 'N/A', // Use the dynamic full name
-            imageUrl: profileData?['profilePicture'], // Use the dynamic profile picture URL
+            name: profileData?['fullname'] ?? 'N/A',
+            imageUrl: profileData?['profilePicture'],
           ),
+          buildTextFieldForSource(),
           buildTextField(),
-          buildTextFieldForSource(), // Ensure this is displayed correctly
           buildCurrentLocationIcon(),
-          _buildRideAcceptedWidget(), // Display ride accepted widget
+          _buildRideAcceptedWidget(),
         ],
       ),
     );
   }
-
 
   Widget buildProfileTile({required String? name, required String? imageUrl}) {
     return Positioned(
@@ -631,7 +636,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                         title: Text(suggestionsList[index]),
                         onTap: () async {
                           destinationController.text = suggestionsList[index];
-                          startCoordinates =
+                          endCoordinates =
                           await fetchCoordinates(suggestionsList[index]);
                           suggestionsList = [];
                           setState(() {});
@@ -698,7 +703,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
                         title: Text(suggestionsList1[index]),
                         onTap: () async {
                           sourceController.text = suggestionsList1[index];
-                          endCoordinates =
+                          startCoordinates =
                           await fetchCoordinates(suggestionsList1[index]);
                           suggestionsList1 = [];
                           setState(() {});
@@ -722,7 +727,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-
   Widget buildCurrentLocationIcon() {
     return Align(
       alignment: Alignment.bottomRight,
@@ -740,6 +744,38 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
+  Widget _buildRideAcceptedWidget() {
+    if (rideAcceptedDetails == null) return SizedBox();
+
+    return Positioned(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Card(
+        elevation: 5,
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Ride Accepted!',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+              ),
+              SizedBox(height: 8),
+              // You can display more details here if needed, like driver name etc.
+              Text('Your ride request has been accepted by a driver.'),
+              ElevatedButton( // Add Cancel Ride Button
+                onPressed: _cancelRide,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: Text("Cancel Ride"),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   bool isAgreed = false; // Add state variable
 
@@ -852,12 +888,11 @@ class _HomeTabPageState extends State<HomeTabPage> {
   }
 
 
-
   int selectedRide = 0;
 
   Widget buildDriversList(String distance, String duration, String cost) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: MongoDatabase.getData(),  // Fetch raw data from MongoDB
+      future: MongoDatabase.getDriversWithLocation(),  // Fetch driver locations
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator());
@@ -866,40 +901,87 @@ class _HomeTabPageState extends State<HomeTabPage> {
           return Center(child: textWidget(text: "No drivers available", fontSize: 16));
         }
 
-        // Convert the raw data (List<Map<String, dynamic>>) to List<MongoDbModelUser>
-        List<MongoDbModelUser> users = snapshot.data!
+        List<MongoDbModelUser> drivers = snapshot.data!
             .map((data) => MongoDbModelUser.fromJson(data))
             .toList();
 
-        // Filter the users where the role is 'Driver'
-        List<MongoDbModelUser> filteredUsers = users
-            .where((user) => user.role == 'Driver')
-            .toList();
+        print("✅ Total Drivers Found: ${drivers.length}");
+        print("📍 Passenger Location: ${startCoordinates?.latitude}, ${startCoordinates?.longitude}");
 
-        // Debugging: Print the fetched users list
-        print("Fetched users: ${filteredUsers.length}");
+
+        if (startCoordinates == null) {
+          return Center(child: textWidget(text: "Waiting for location...", fontSize: 16));
+        }
+
+        // 🔹 Filter drivers within 500 meters
+        // 🔹 Filter drivers within 1km (1000 meters)
+        const double maxDistanceMeters = 1000.0; // 1 km
+
+        drivers = drivers.where((driver) {
+          print("🛠️ Checking driver: ${driver.fullname}");
+          print("📦 Full driver data: $driver");  // Print entire object
+
+          if (driver.latitude == null || driver.longitude == null) {
+            print("⚠️ Skipping driver ${driver.fullname} due to missing coordinates.");
+            return false;
+          }
+
+          print("📍 Driver Coordinates: ${driver.latitude}, ${driver.longitude}");
+          print("📍 Passenger Coordinates: ${startCoordinates!.latitude}, ${startCoordinates!.longitude}");
+
+          double distanceToPassenger = calculateDistance(
+            startCoordinates!.latitude,
+            startCoordinates!.longitude,
+            driver.latitude!,
+            driver.longitude!,
+          );
+
+          print("🚗 ${driver.fullname} Distance: ${distanceToPassenger.toStringAsFixed(3)} km");
+
+          return (distanceToPassenger * 1000) <= 1000.0;
+        }).toList();
+
+
+        print("✅ Nearby Drivers: ${drivers.length}");
+
+        if (drivers.isEmpty) {
+          return Center(child: textWidget(text: "No nearby drivers found", fontSize: 16));
+        }
+
+        // 🔹 Sort remaining drivers by proximity (ascending order)
+        drivers.sort((a, b) {
+          double distanceA = calculateDistance(
+            startCoordinates!.latitude,
+            startCoordinates!.longitude,
+            a.latitude!,
+            a.longitude!,
+          );
+          double distanceB = calculateDistance(
+            startCoordinates!.latitude,
+            startCoordinates!.longitude,
+            b.latitude!,
+            b.longitude!,
+          );
+
+          return distanceA.compareTo(distanceB);
+        });
+
 
         return SizedBox(
           height: 100,
-          child: StatefulBuilder(
-            builder: (context, setState) {
-              return ListView.builder(
-                itemCount: filteredUsers.length,
-                scrollDirection: Axis.horizontal,
-                itemBuilder: (ctx, i) {
-                  var driver = filteredUsers[i];
-                  return InkWell(
-                    onTap: () {
-                      setState(() {
-                        selectedRide = i;
-                        selectedDriver = filteredUsers[i]; // ✅ Ensure assignment
-                        // print("🚀 Selected Driver Updated: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
-                      });
-                    },
-
-                    child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
-                  );
+          child: ListView.builder(
+            itemCount: drivers.length,
+            scrollDirection: Axis.horizontal,
+            itemBuilder: (ctx, i) {
+              var driver = drivers[i];
+              return InkWell(
+                onTap: () {
+                  setState(() {
+                    selectedRide = i;
+                    selectedDriver = drivers[i]; // Assign nearest driver
+                  });
                 },
+                child: buildDriverCard(driver, selectedRide == i, distance, duration, cost),
               );
             },
           ),
@@ -907,7 +989,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
       },
     );
   }
-
 
   buildDriverCard(MongoDbModelUser user, bool selected, String distance, String duration, String cost) {
     return Container(

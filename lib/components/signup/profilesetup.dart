@@ -203,6 +203,7 @@ class _ProfilesetupState extends State<Profilesetup> {
         "cabbrand": cabBrand,
         "status": "pending",
         "userId": objectId,
+        "driverId": objectId,  // 🆕 Assigning driverId
       };
 
       await MongoDatabase.insertPendingDriver(pendingDriverData);

@@ -303,6 +303,21 @@ class MongoDatabase {
     }
   }
 
+  static Future<List<Map<String, dynamic>>> getDriversWithLocation() async {
+    try {
+      var driverCollection = db.collection('pinned_locations'); // Ensure correct collection
+      var driverData = await driverCollection.find().toList();
+
+      print("🔍 Fetched drivers: ${driverData.length}");
+      print("📍 First Driver Data: ${driverData.isNotEmpty ? driverData.first : 'No data'}");
+
+      return driverData;
+    } catch (e) {
+      print("❌ Error fetching driver data: $e");
+      return [];
+    }
+  }
+
   static Future<void> insertPendingDriver(Map<String, dynamic> driverData) async {
     if (db == null) {
       await connect(); // Ensure the connection is established before accessing the collection
