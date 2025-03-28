@@ -61,6 +61,14 @@ class MongoDbModelUser {
       throw FormatException("Invalid _id format in the provided JSON.");
     }
 
+    // Helper function to safely convert to hex string
+    String? _safeObjectIdToString(dynamic value) {
+      if (value is ObjectId) {
+        return value.toHexString();
+      }
+      return value as String?; // If it's already a String or null, cast it
+    }
+
     return MongoDbModelUser(
       id: objectId,
       email: json["email"],
@@ -69,8 +77,8 @@ class MongoDbModelUser {
       number: json["number"],
       address: json["address"],
       role: json["role"],
-      driverId: json["driverId"] ?? objectId.oid,
-      passengerId: json["passengerId"] ?? objectId.oid,
+      driverId: _safeObjectIdToString(json["driverId"]) ?? objectId.oid,
+      passengerId: _safeObjectIdToString(json["passengerId"]) ?? objectId.oid,
       coordinates: json["coordinates"],
       topLevelLatitude: json["latitude"]?.toDouble(), // Capture top-level latitude
       topLevelLongitude: json["longitude"]?.toDouble(), // Capture top-level longitude

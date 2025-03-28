@@ -21,16 +21,18 @@ class MongoDatabase {
   // Fetch the current user by firebaseId
   static Future<MongoDbModelUser?> getUser(String firebaseId) async {
     try {
+      print("🔍 Looking for user with firebaseId: $firebaseId");
       var userData = await userCollection.findOne(where.eq('firebaseId', firebaseId));
+      print("📄 User Data: $userData");
 
       if (userData != null) {
         return MongoDbModelUser.fromJson(userData);
       } else {
-        // print("🚨 User not found in the database!");
+        print("🚫 No user found with firebaseId: $firebaseId");
         return null;
       }
     } catch (e) {
-      // print("❌ Error fetching user: $e");
+      print("❌ Error in getUser(): $e");
       return null;
     }
   }
@@ -131,14 +133,22 @@ class MongoDatabase {
   }
 
   static Future<void> saveRequest(Map<String, dynamic> requestData) async {
-    var collection = db.collection('requests');
+    try {
+      var collection = db.collection('requests');
+      requestData['status'] = 'pending';
 
-    // Ensure the request has a 'status', but DO NOT overwrite driverId
-    requestData['status'] = 'pending';
+      var result = await collection.insertOne(requestData);
 
-    // print("🔥 Before Insert - Final Request Data: $requestData");
+      if (result.isSuccess) {
+        print("✅ Request inserted successfully: ${result.id}");
+      } else {
+        print("❌ Failed to insert request: ${result.errmsg}");
+      }
+    } catch (e, stacktrace) {
+      print("❌ Error inserting request: $e");
 
-    await collection.insert(requestData);
+      print(stacktrace);
+    }
   }
 
   static Future<bool> updateProfile(String firebaseId, Map<String, dynamic> updatedData) async {

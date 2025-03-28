@@ -307,7 +307,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
       Map<String, dynamic> requestData = {
         "_id": mongo.ObjectId(), // ✅ Generate a new ObjectId
         "passengerId": loggedInUser.id.oid,
-        "driverId": selectedDriver.id.oid,  // Assign selected driver
+        "driverId": selectedDriver.driverId,
         "fullname": loggedInUser.fullname,
         "number": loggedInUser.number,
         "coordinates": {
