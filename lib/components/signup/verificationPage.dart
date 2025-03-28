@@ -1,87 +1,55 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:lage/components/signup/profilesetup.dart';
+import 'profilesetup.dart';
 
-class VerificationPage extends StatefulWidget {
-  const VerificationPage({super.key});
+class OTPVerificationPage extends StatefulWidget {
+  final String email;
+  final String otp;
+
+  const OTPVerificationPage({super.key, required this.email, required this.otp});
 
   @override
-  State<VerificationPage> createState() => _VerificationPageState();
+  State<OTPVerificationPage> createState() => _OTPVerificationPageState();
 }
 
-class _VerificationPageState extends State<VerificationPage> {
-  bool isEmailVerified = false;
-  bool isResending = false;
+class _OTPVerificationPageState extends State<OTPVerificationPage> {
+  TextEditingController otpController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    checkEmailVerified();
-  }
-
-  Future<void> checkEmailVerified() async {
-    User? user = FirebaseAuth.instance.currentUser;
-    await user?.reload();
-    setState(() {
-      isEmailVerified = user?.emailVerified ?? false;
-    });
-
-    if (isEmailVerified) {
+  verifyOtp() {
+    if (otpController.text.trim() == widget.otp) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => Profilesetup()),
+        MaterialPageRoute(builder: (context) => const Profilesetup()),
       );
-    }
-  }
-
-  Future<void> sendVerificationEmail() async {
-    try {
-      setState(() => isResending = true);
-      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Verification email sent!')),
+        const SnackBar(content: Text('Incorrect OTP')),
       );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}')),
-      );
-    } finally {
-      setState(() => isResending = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Verify Your Email'),
-        centerTitle: true,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'A verification email has been sent to your email address. Please verify to continue.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16),
+      appBar: AppBar(title: const Text('Verify OTP')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            const Text('Enter the OTP sent to your email'),
+            const SizedBox(height: 20),
+            TextField(
+              controller: otpController,
+              decoration: const InputDecoration(
+                labelText: 'OTP',
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: checkEmailVerified,
-                child: const Text('I have verified my email'),
-              ),
-              const SizedBox(height: 20),
-              isResending
-                  ? const CircularProgressIndicator()
-                  : TextButton(
-                onPressed: sendVerificationEmail,
-                child: const Text('Resend Verification Email'),
-              ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: verifyOtp,
+              child: const Text('Verify'),
+            ),
+          ],
         ),
       ),
     );

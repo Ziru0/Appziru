@@ -10,7 +10,6 @@ import 'package:lage/components/tabpages/terms_condition.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:http/http.dart' as http;
 import 'package:mongo_dart/mongo_dart.dart' as mongo;  // Alias mongo_dart import.
-import  'package:shared_preferences/shared_preferences.dart';
 import '../../dbHelper/MongoDBModeluser.dart';
 import '../../dbHelper/mongodb.dart';
 
@@ -267,7 +266,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
         // ✅ Cost Calculation
         double baseFare = 15.0;
-        double extraFarePerKm = 10.0;
+        double extraFarePerKm = 20.0;
         double radiusLimit = 2.5; // Radius in km
 
         double costDecimal = (distanceDecimal <= radiusLimit)
@@ -296,42 +295,58 @@ class _HomeTabPageState extends State<HomeTabPage> {
     }
   }
 
+
+// Modify the saveRideRequest function to accept the notes
   Future<void> saveRideRequest(
-      MongoDbModelUser selectedDriver, String distance, String duration, String cost) async {
+      MongoDbModelUser selectedDriver,
+      String distance,
+      String duration,
+      String cost, {
+        String? passengerNotes, // Make passengerNotes an optional parameter
+      }) async {
+    try {
+      String firebaseUserId = getCurrentFirebaseUserId();
+      print("🔍 Firebase User ID: $firebaseUserId");
 
-    String firebaseUserId = getCurrentFirebaseUserId();
-    MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
+      MongoDbModelUser? loggedInUser = await MongoDatabase.getUser(firebaseUserId);
 
-    if (loggedInUser != null) {
-      // Create ride request with selected driver
-      Map<String, dynamic> requestData = {
-        "_id": mongo.ObjectId(), // ✅ Generate a new ObjectId
-        "passengerId": loggedInUser.id.oid,
-        "driverId": selectedDriver.driverId,
-        "fullname": loggedInUser.fullname,
-        "number": loggedInUser.number,
-        "coordinates": {
-          "start": {
-            "longitude": startCoordinates?.longitude,
-            "latitude": startCoordinates?.latitude,
+      if (loggedInUser != null) {
+        print("👤 Logged In User: ${loggedInUser.fullname}");
+
+        Map<String, dynamic> requestData = {
+          "_id": mongo.ObjectId(),
+          "passengerId": loggedInUser.id.oid,
+          "driverId": selectedDriver.driverId,
+          "fullname": loggedInUser.fullname,
+          "number": loggedInUser.number,
+          "coordinates": {
+            "start": {
+              "longitude": startCoordinates?.longitude,
+              "latitude": startCoordinates?.latitude,
+            },
+            "end": {
+              "longitude": endCoordinates?.longitude,
+              "latitude": endCoordinates?.latitude,
+            }
           },
-          "end": {
-            "longitude": endCoordinates?.longitude,
-            "latitude": endCoordinates?.latitude,
-          }
-        },
-        "distance": distance,  // ✅ Fix: Use calculated distance
-        "duration": duration,  // ✅ Fix: Use calculated duration
-        "cost": cost,          // ✅ Fix: Use calculated cost
-        "status": "pending",   // Initial status
-      };
+          "distance": distance,
+          "duration": duration,
+          "cost": cost,
+          "status": "pending",
+          "passengerNotes": passengerNotes, // Include the passenger notes
+        };
 
-      await MongoDatabase.saveRequest(requestData);
-      print("✅ Ride request saved with driver: ${selectedDriver.fullname}");
-    } else {
-      print("🚨 Failed to fetch user details!");
+        await MongoDatabase.saveRequest(requestData);
+        print("✅ Ride request saved with driver: ${selectedDriver.fullname}");
+      } else {
+        print("🚨 Failed to fetch user details!");
+      }
+    } catch (e, stacktrace) {
+      print("❌ Error saving ride request: $e");
+      print(stacktrace);
     }
   }
+
 
   List<LatLng> decodePolyline(String encoded)   {
     List<LatLng> polyline = [];
@@ -414,8 +429,6 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
     return distance;
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -779,11 +792,14 @@ class _HomeTabPageState extends State<HomeTabPage> {
 
   bool isAgreed = false; // Add state variable
 
+
+
   Widget buildRideConfirmationSheet(String distance, String duration, String cost) {
+    TextEditingController notesController = TextEditingController();
     return StatefulBuilder(
       builder: (context, setState) => Container(
         width: Get.width,
-        height: Get.height * 0.35, // Increased height for the agreement
+        height: Get.height * 0.45, // Increased height to accommodate the notes
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color: Colors.white,
@@ -808,7 +824,26 @@ class _HomeTabPageState extends State<HomeTabPage> {
               fontWeight: FontWeight.bold,
             ),
             const SizedBox(height: 10),
-            buildDriversList(distance, duration, cost), // ✅ Pass the values
+            Expanded(
+              child: buildDriversList(distance, duration, cost), // ✅ Pass the values
+            ),
+            const SizedBox(height: 10),
+            textWidget(
+              text: 'Add Notes (Optional):',
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+            ),
+            const SizedBox(height: 5),
+            TextFormField(
+              controller: notesController,
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Enter any specific instructions or notes for the driver...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
             const SizedBox(height: 10),
             const Divider(),
             Row(
@@ -853,8 +888,8 @@ class _HomeTabPageState extends State<HomeTabPage> {
                     return;
                   }
                   if (selectedDriver != null) {
-                    // print("✅ Selected Driver: ${selectedDriver!.fullname} - ${selectedDriver!.id.oid}");
-                    saveRideRequest(selectedDriver!, distance, duration, cost);
+                    final passengerNotes = notesController.text.trim();
+                    saveRideRequest(selectedDriver!, distance, duration, cost, passengerNotes: passengerNotes);
                     Get.back();
 
                     // 🔹 Show Snackbar to notify passenger
@@ -887,8 +922,7 @@ class _HomeTabPageState extends State<HomeTabPage> {
     );
   }
 
-
-  int selectedRide = 0;
+  int selectedRide = 1;
 
   Widget buildDriversList(String distance, String duration, String cost) {
     return FutureBuilder<List<Map<String, dynamic>>>(

@@ -11,7 +11,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:get/get.dart';
 import '../../dbHelper/mongodb.dart';
 
-
 class DriverHomePage extends StatefulWidget {
   const DriverHomePage({super.key});
 
@@ -29,10 +28,11 @@ class DriverHomePageState extends State<DriverHomePage> {
   LatLng? startCoordinates;
   LatLng? endCoordinates;
   Timer? _rideRequestTimer; // Timer for ride request polling
-  bool isPinLocationInputVisible = false; // State for pin location input visibility
-  final TextEditingController _pinLocationController = TextEditingController(); // Controller for pin location input
+  bool isPinLocationInputVisible =
+      false; // State for pin location input visibility
+  final TextEditingController _pinLocationController =
+      TextEditingController(); // Controller for pin location input
   List<String> _suggestions = [];
-
 
   @override
   void initState() {
@@ -54,11 +54,10 @@ class DriverHomePageState extends State<DriverHomePage> {
       print("❌ profileData is null in getCurrentDriverId"); // Debugging print
       return null;
     }
-    String? driverId = profileData?['_id'].toHexString();  // Ensure '_id' is correctly retrieved
-    print("✅ Driver ID retrieved: $driverId"); // Debugging print
+    String? driverId = profileData?['_id']
+        .toHexString(); // Ensure '_id' is correctly retrieved
     return driverId;
   }
-
 
   void _fetchProfileData() async {
     try {
@@ -68,9 +67,11 @@ class DriverHomePageState extends State<DriverHomePage> {
         if (data != null) {
           setState(() => profileData = data);
           _startListeningForRideRequests(); // Start listening after profile data is loaded
-          print("✅ Profile data fetched successfully: $profileData"); // Debugging print
+          print(
+              "✅ Profile data fetched successfully: $profileData"); // Debugging print
         } else {
-          print("❌ No profile data found for user ${user.uid}"); // Debugging print
+          print(
+              "❌ No profile data found for user ${user.uid}"); // Debugging print
         }
       } else {
         print("❌ No user logged in"); // Debugging print
@@ -82,26 +83,29 @@ class DriverHomePageState extends State<DriverHomePage> {
 
   void _listenForRideRequests() async {
     if (profileData == null) {
-      print("❌ profileData is null in _listenForRideRequests, cannot fetch requests."); // Debugging print
+      print(
+          "❌ profileData is null in _listenForRideRequests, cannot fetch requests."); // Debugging print
       return;
     }
     var collection = MongoDatabase.db.collection('requests');
     var driverId = profileData?['_id'].toHexString();
 
-    var requests = await collection.find({
-      'driverId': driverId,
-      'status': 'pending'
-    }).toList();
+    var requests = await collection
+        .find({'driverId': driverId, 'status': 'pending'}).toList();
 
-    List<Map<String, dynamic>> newRequests = List<Map<String, dynamic>>.from(requests);
+    List<Map<String, dynamic>> newRequests =
+        List<Map<String, dynamic>>.from(requests);
 
     // Check for cancellations in existing rideRequests
     for (var existingRequest in rideRequests) {
-      bool stillPending = newRequests.any((req) => req['_id'].toHexString() == existingRequest['_id'].toHexString());
+      bool stillPending = newRequests.any((req) =>
+          req['_id'].toHexString() == existingRequest['_id'].toHexString());
       if (!stillPending) {
         // Request is no longer in pending requests, check if it was cancelled
-        var cancelledRequest = await collection.findOne(mongo.where.id(existingRequest['_id']));
-        if (cancelledRequest != null && cancelledRequest['status'] == 'cancelled') {
+        var cancelledRequest =
+            await collection.findOne(mongo.where.id(existingRequest['_id']));
+        if (cancelledRequest != null &&
+            cancelledRequest['status'] == 'cancelled') {
           _showPassengerCancelledNotification(cancelledRequest);
         }
       }
@@ -152,14 +156,10 @@ class DriverHomePageState extends State<DriverHomePage> {
     });
 
     // ✅ Extract start & end coordinates
-    LatLng? start = LatLng(
-        request['coordinates']['start']['latitude'],
-        request['coordinates']['start']['longitude']
-    );
-    LatLng? end = LatLng(
-        request['coordinates']['end']['latitude'],
-        request['coordinates']['end']['longitude']
-    );
+    LatLng? start = LatLng(request['coordinates']['start']['latitude'],
+        request['coordinates']['start']['longitude']);
+    LatLng? end = LatLng(request['coordinates']['end']['latitude'],
+        request['coordinates']['end']['longitude']);
 
     // ✅ Assign coordinates for route fetching
     startCoordinates = start;
@@ -171,11 +171,13 @@ class DriverHomePageState extends State<DriverHomePage> {
 
   Future<void> fetchRoute() async {
     if (startCoordinates == null || endCoordinates == null) {
-      print("❌ startCoordinates or endCoordinates is null, cannot fetch route."); // Debugging print
+      print(
+          "❌ startCoordinates or endCoordinates is null, cannot fetch route."); // Debugging print
       return;
     }
 
-    final apiKey = 'YOUR_OPENROUTESERVICE_API_KEY'; // Replace with your actual API key
+    final apiKey =
+        'YOUR_OPENROUTESERVICE_API_KEY'; // Replace with your actual API key
     final url = 'https://api.openrouteservice.org/v2/directions/driving-car';
 
     final body = {
@@ -205,12 +207,13 @@ class DriverHomePageState extends State<DriverHomePage> {
         final decodedPolyline = decodePolyline(geometry);
 
         setState(() {
-          polylinePoints = decodedPolyline;  // ✅ Update polyline on the map
+          polylinePoints = decodedPolyline; // ✅ Update polyline on the map
         });
 
         moveMapToPolyline(); // ✅ Move the map to fit the route
       } else {
-        print("❌ Failed to fetch route. Status code: ${response.statusCode}, Body: ${response.body}"); // Debugging print
+        print(
+            "❌ Failed to fetch route. Status code: ${response.statusCode}, Body: ${response.body}"); // Debugging print
       }
     } catch (e) {
       print("❌ Error fetching route: $e"); // Debugging print
@@ -241,14 +244,16 @@ class DriverHomePageState extends State<DriverHomePage> {
     // Estimate a good zoom level (tweak as needed)
     double latDiff = maxLat - minLat;
     double lngDiff = maxLng - minLng;
-    zoomLevel = (latDiff > lngDiff) ? 14.0 - (latDiff * 5) : 14.0 - (lngDiff * 5);
-    zoomLevel = zoomLevel.clamp(10.0, 18.0); // Keep zoom within a reasonable range
+    zoomLevel =
+        (latDiff > lngDiff) ? 14.0 - (latDiff * 5) : 14.0 - (lngDiff * 5);
+    zoomLevel =
+        zoomLevel.clamp(10.0, 18.0); // Keep zoom within a reasonable range
 
     // Move the map
     mapController.move(LatLng(centerLat, centerLng), zoomLevel);
   }
 
-  List<LatLng> decodePolyline(String encoded)   {
+  List<LatLng> decodePolyline(String encoded) {
     List<LatLng> polyline = [];
     int index = 0, len = encoded.length;
     int lat = 0, lng = 0;
@@ -288,11 +293,13 @@ class DriverHomePageState extends State<DriverHomePage> {
     setState(() {
       rideRequests.remove(request);
     });
-    Get.snackbar( // Notify driver with snackbar
+    Get.snackbar(
+      // Notify driver with snackbar
       "Ride Request Declined",
       "The ride request from ${request['fullname']} has been declined.",
       snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.orange, // Use orange to indicate declined/cancelled
+      backgroundColor:
+          Colors.orange, // Use orange to indicate declined/cancelled
       colorText: Colors.white,
     );
   }
@@ -302,8 +309,7 @@ class DriverHomePageState extends State<DriverHomePage> {
       isAvailable = !isAvailable;
     });
     var collection = MongoDatabase.db.collection('drivers');
-    await collection.updateOne(
-        mongo.where.eq('_id', profileData?['_id']),
+    await collection.updateOne(mongo.where.eq('_id', profileData?['_id']),
         mongo.modify.set('isAvailable', isAvailable));
   }
 
@@ -322,14 +328,6 @@ class DriverHomePageState extends State<DriverHomePage> {
     });
   }
 
-  void _togglePinLocationInputVisibility() {
-    setState(() {
-      isPinLocationInputVisible = !isPinLocationInputVisible;
-      if (!isPinLocationInputVisible) {
-        _pinLocationController.clear(); // Clear text when hiding input
-      }
-    });
-  }
 
   Future<List<String>> fetchPlaceSuggestions(String query) async {
     final apiKey = '5b3ce3597851110001cf624811cef0354a884bb2be1bed7e3fa689b0';
@@ -375,6 +373,7 @@ class DriverHomePageState extends State<DriverHomePage> {
       _suggestions = []; // Clear suggestions after selection
     });
   }
+
 // Pin Location Input (Bottom Right)
   LatLng? _searchedLocation; // Store searched location
 
@@ -395,10 +394,12 @@ class DriverHomePageState extends State<DriverHomePage> {
 
         // Fetch driver ID dynamically
         String? driverId = await getCurrentDriverId();
-        String? driverFullname = profileData?['fullname']; // Get fullname from profileData
+        String? driverFullname =
+            profileData?['fullname']; // Get fullname from profileData
 
         if (driverId != null && driverFullname != null) {
-          await _savePinnedLocationToDatabase(driverId, driverFullname, _searchedLocation!);
+          await _savePinnedLocationToDatabase(
+              driverId, driverFullname, _searchedLocation!);
         } else {
           print("❌ Error: Driver ID or Fullname not found!");
         }
@@ -410,7 +411,8 @@ class DriverHomePageState extends State<DriverHomePage> {
     }
   }
 
-  Future<void> _savePinnedLocationToDatabase(String driverId, String fullname, LatLng location) async {
+  Future<void> _savePinnedLocationToDatabase(
+      String driverId, String fullname, LatLng location) async {
     try {
       // 🔹 Ensure MongoDB is connected
       if (MongoDatabase.db == null || !MongoDatabase.db.isConnected) {
@@ -424,12 +426,12 @@ class DriverHomePageState extends State<DriverHomePage> {
       var result = await collection.insertOne({
         "driverId": driverId,
         "fullname": fullname,
-        "locationName": _pinLocationController.text.toLowerCase(), // Convert to lowercase
+        "locationName":
+            _pinLocationController.text.toLowerCase(), // Convert to lowercase
         "latitude": location.latitude,
         "longitude": location.longitude,
         "timestamp": DateTime.now().toIso8601String(),
       });
-
 
       if (result.isSuccess) {
         print("✅ Pinned location saved successfully!");
@@ -468,10 +470,8 @@ class DriverHomePageState extends State<DriverHomePage> {
       String formattedLocationName = locationName.toLowerCase();
 
       // Check if the location exists first
-      var existingLocation = await collection.findOne({
-        "driverId": driverId,
-        "locationName": formattedLocationName
-      });
+      var existingLocation = await collection.findOne(
+          {"driverId": driverId, "locationName": formattedLocationName});
 
       if (existingLocation == null) {
         print("❌ No matching location found in DB for removal.");
@@ -479,24 +479,22 @@ class DriverHomePageState extends State<DriverHomePage> {
       }
 
       // Perform delete operation
-      var result = await collection.deleteOne({
-        "driverId": driverId,
-        "locationName": formattedLocationName
-      });
+      var result = await collection.deleteOne(
+          {"driverId": driverId, "locationName": formattedLocationName});
 
-      if (result.isAcknowledged && result.deletedCount > 0) {
+      if (result.isAcknowledged && result.nRemoved > 0) {
         print("✅ Location '$locationName' removed successfully from DB!");
 
         // 🔹 Refresh pinned locations from the database
         await _loadPinnedLocations();
       } else {
-        print("❌ Failed to remove location from DB. Deletion query might not match.");
+        print(
+            "❌ Failed to remove location from DB. Deletion query might not match.");
       }
     } catch (e) {
       print("❌ Error removing pinned location: $e");
     }
   }
-
   bool isPinnedListVisible = false; // Add this to control visibility
 
   void _togglePinnedListVisibility() {
@@ -533,7 +531,8 @@ class DriverHomePageState extends State<DriverHomePage> {
   List<Map<String, dynamic>> _pinnedLocations = []; // Stores pinned locations
 
   Future<void> _loadPinnedLocations() async {
-    List<Map<String, dynamic>> locations = await _fetchPinnedLocations(); // Ensure fresh data
+    List<Map<String, dynamic>> locations =
+        await _fetchPinnedLocations(); // Ensure fresh data
 
     setState(() {
       _pinnedLocations = locations;
@@ -547,10 +546,7 @@ class DriverHomePageState extends State<DriverHomePage> {
       }).toList();
     });
 
-    print("📌 Updated pinned locations: $_pinnedLocations"); // Debugging print
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -558,7 +554,8 @@ class DriverHomePageState extends State<DriverHomePage> {
       _loadPinnedLocations(); // Ensure pinned locations are reloaded
     }
     return Scaffold(
-      appBar: AppBar(title: Text("Driver Dashboard", style: GoogleFonts.poppins())),
+      appBar:
+          AppBar(title: Text("Driver Dashboard", style: GoogleFonts.poppins())),
       body: Stack(
         children: [
           FlutterMap(
@@ -569,11 +566,13 @@ class DriverHomePageState extends State<DriverHomePage> {
             ),
             children: [
               TileLayer(
-                urlTemplate: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+                urlTemplate:
+                    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
                 subdomains: ['a', 'b', 'c'],
               ),
 
-              if (_searchedLocation != null) // Show marker if a location is searched
+              if (_searchedLocation !=
+                  null) // Show marker if a location is searched
                 MarkerLayer(
                   markers: [
                     Marker(
@@ -593,7 +592,8 @@ class DriverHomePageState extends State<DriverHomePage> {
                             ),
                             child: Text(
                               profileData?['fullname'] ?? 'Driver',
-                              style: GoogleFonts.poppins(fontSize: 12, fontWeight: FontWeight.bold),
+                              style: GoogleFonts.poppins(
+                                  fontSize: 12, fontWeight: FontWeight.bold),
                             ),
                           ),
                           Icon(Icons.location_pin, color: Colors.red, size: 50),
@@ -606,7 +606,10 @@ class DriverHomePageState extends State<DriverHomePage> {
               // Display polyline route
               PolylineLayer(
                 polylines: [
-                  Polyline(points: polylinePoints, strokeWidth: 4.0, color: Colors.blue),
+                  Polyline(
+                      points: polylinePoints,
+                      strokeWidth: 4.0,
+                      color: Colors.blue),
                 ],
               ),
 
@@ -620,9 +623,9 @@ class DriverHomePageState extends State<DriverHomePage> {
           ),
           _buildRideRequestWidget(),
           _buildAcceptedRideWidget(),
-          _buildPinLocationPanel(),  // Now positioned at bottom right
-          _buildPinLocationFAB(),    // FAB for pinning location (Bottom Right)
-          _buildAvailabilityFAB(),   // FAB for availability (Bottom Left)
+          _buildPinLocationPanel(), // Now positioned at bottom right
+          _buildPinLocationFAB(), // FAB for pinning location (Bottom Right)
+          _buildAvailabilityFAB(), // FAB for availability (Bottom Left)
         ],
       ),
     );
@@ -645,6 +648,7 @@ class DriverHomePageState extends State<DriverHomePage> {
       ),
     );
   }
+
   Widget _buildAvailabilityFAB() {
     return Positioned(
       bottom: 20,
@@ -663,6 +667,7 @@ class DriverHomePageState extends State<DriverHomePage> {
   Widget _buildRideRequestWidget() {
     if (rideRequests.isEmpty) return SizedBox();
     var request = rideRequests.first;
+    String? passengerNotes = request['passengerNotes'];
 
     return Positioned(
       bottom: 20,
@@ -682,6 +687,17 @@ class DriverHomePageState extends State<DriverHomePage> {
               SizedBox(height: 8),
               Text('Distance: ${request['distance']} km'),
               Text('Cost: PHP ${request['cost']}'),
+              if (passengerNotes != null && passengerNotes.isNotEmpty) ...[
+                SizedBox(height: 8),
+                Text(
+                  'Passenger Notes:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                Text(
+                  passengerNotes,
+                  style: TextStyle(fontSize: 14, fontStyle: FontStyle.italic),
+                ),
+              ],
               SizedBox(height: 12),
               Row(
                 children: [
@@ -705,13 +721,17 @@ class DriverHomePageState extends State<DriverHomePage> {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   ElevatedButton(
-                    onPressed: isTermsAccepted ? () => _acceptRideRequest(request) : null,
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    onPressed: isTermsAccepted
+                        ? () => _acceptRideRequest(request)
+                        : null,
+                    style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: Text("Accept"),
                   ),
                   ElevatedButton(
                     onPressed: () => _declineRideRequest(request),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                    style:
+                    ElevatedButton.styleFrom(backgroundColor: Colors.red),
                     child: Text("Decline"),
                   ),
                 ],
@@ -752,7 +772,8 @@ class DriverHomePageState extends State<DriverHomePage> {
                 children: [
                   ElevatedButton(
                     onPressed: () => _completeRide('completed'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                    style:
+                        ElevatedButton.styleFrom(backgroundColor: Colors.green),
                     child: Text("Done"),
                   ),
                 ],
@@ -771,75 +792,73 @@ class DriverHomePageState extends State<DriverHomePage> {
       right: 0,
       child: name == null
           ? const Center(
-        child: CircularProgressIndicator(),
-      )
+              child: CircularProgressIndicator(),
+            )
           : Container(
-        width: Get.width,
-        height: Get.width * 0.5,
-        padding:
-        const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                image: imageUrl == null
-                    ? const DecorationImage(
-                  image: AssetImage('assets/person.png'),
-                  fit: BoxFit.fill,
-                )
-                    : DecorationImage(
-                  image: NetworkImage(imageUrl),
-                  fit: BoxFit.fill,
-                ),
-              ),
-            ),
-            const SizedBox(
-              width: 15,
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                RichText(
-                  text: TextSpan(
+              width: Get.width,
+              height: Get.width * 0.5,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      image: imageUrl == null
+                          ? const DecorationImage(
+                              image: AssetImage('assets/person.png'),
+                              fit: BoxFit.fill,
+                            )
+                          : DecorationImage(
+                              image: NetworkImage(imageUrl),
+                              fit: BoxFit.fill,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 15,
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const TextSpan(
-                        text: 'Good Morning, ',
-                        style:
-                        TextStyle(color: Colors.black, fontSize: 14),
+                      RichText(
+                        text: TextSpan(
+                          children: [
+                            const TextSpan(
+                              text: 'Good Morning, ',
+                              style:
+                                  TextStyle(color: Colors.black, fontSize: 14),
+                            ),
+                            TextSpan(
+                              text: name,
+                              style: const TextStyle(
+                                color: Color(0xFF3C3D37),
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      TextSpan(
-                        text: name,
-                        style: const TextStyle(
-                          color: Color(0xFF3C3D37),
+                      const Text(
+                        "Waiting for Passenger?",
+                        style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
+                          color: Colors.black,
                         ),
                       ),
                     ],
                   ),
-                ),
-                const Text(
-                  "Waiting for Passenger?",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ],
-        ),
-      ),
     );
   }
-
 
   Widget _buildPinLocationPanel() {
     if (!isPinLocationInputVisible && !isPinnedListVisible) {
@@ -847,129 +866,138 @@ class DriverHomePageState extends State<DriverHomePage> {
     }
 
     return Positioned(
-        bottom: 20,
-        left: 20,
-        right: 20,
-        child: Card(
+      bottom: 20,
+      left: 20,
+      right: 20,
+      child: Card(
         elevation: 5,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    child: Padding(
-    padding: const EdgeInsets.all(16.0),
-    child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    // 🔹 Header with Close Button
-    Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: [
-    Text("Manage Pinned Locations",
-    style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.w600)),
-    IconButton(
-    icon: const Icon(Icons.close, color: Colors.grey),
-    onPressed: () {
-    setState(() {
-    isPinLocationInputVisible = false;
-    isPinnedListVisible = false;
-    });
-    },
-    ),
-    ],
-    ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 🔹 Header with Close Button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text("Manage Pinned Locations",
+                      style: GoogleFonts.poppins(
+                          fontSize: 18, fontWeight: FontWeight.w600)),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.grey),
+                    onPressed: () {
+                      setState(() {
+                        isPinLocationInputVisible = false;
+                        isPinnedListVisible = false;
+                      });
+                    },
+                  ),
+                ],
+              ),
 
-    const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-    // 🔹 Search & Pin Location Input
-    TextField(
-    controller: _pinLocationController,
-    decoration: InputDecoration(
-    hintText: 'Search or Pin a Location...',
-    border: OutlineInputBorder(
-    borderRadius: BorderRadius.circular(8),
-    borderSide: BorderSide.none,
-    ),
-    filled: true,
-    fillColor: Colors.grey[100],
-    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-    suffixIcon: _pinLocationController.text.isNotEmpty
-    ? IconButton(
-    icon: const Icon(Icons.clear, color: Colors.grey),
-    onPressed: () {
-    _pinLocationController.clear();
-    _onTextChanged(''); // Assuming _onTextChanged is defined in the parent
-    },
-    )
-        : null,
-    ),
-    style: GoogleFonts.poppins(),
-    onChanged: _onTextChanged, // Assuming _onTextChanged is defined in the parent
-    onSubmitted: (query) => _searchLocation(query),
-    ),
+              // 🔹 Search & Pin Location Input
+              TextField(
+                controller: _pinLocationController,
+                decoration: InputDecoration(
+                  hintText: 'Search or Pin a Location...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                  suffixIcon: _pinLocationController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.grey),
+                          onPressed: () {
+                            _pinLocationController.clear();
+                            _onTextChanged(
+                                ''); // Assuming _onTextChanged is defined in the parent
+                          },
+                        )
+                      : null,
+                ),
+                style: GoogleFonts.poppins(),
+                onChanged:
+                    _onTextChanged, // Assuming _onTextChanged is defined in the parent
+                onSubmitted: (query) => _searchLocation(query),
+              ),
 
-    // 🔹 Location Suggestions
-    if (_suggestions.isNotEmpty)
-    Padding(
-    padding: const EdgeInsets.only(top: 8.0),
-    child: Material(
-    elevation: 2,
-    borderRadius: BorderRadius.circular(8),
-    child: ListView.builder(
-    shrinkWrap: true,
-    physics: const NeverScrollableScrollPhysics(),
-    itemCount: _suggestions.length,
-    itemBuilder: (context, index) {
-    final suggestion = _suggestions[index];
-    return ListTile(
-    title: Text(suggestion, style: GoogleFonts.poppins()),
-    onTap: () => _onSuggestionSelected(suggestion), // Assuming _onSuggestionSelected is defined in the parent
-    );
-    },
-    ),
-    ),
-    ),
+              // 🔹 Location Suggestions
+              if (_suggestions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Material(
+                    elevation: 2,
+                    borderRadius: BorderRadius.circular(8),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _suggestions.length,
+                      itemBuilder: (context, index) {
+                        final suggestion = _suggestions[index];
+                        return ListTile(
+                          title: Text(suggestion, style: GoogleFonts.poppins()),
+                          onTap: () => _onSuggestionSelected(
+                              suggestion), // Assuming _onSuggestionSelected is defined in the parent
+                        );
+                      },
+                    ),
+                  ),
+                ),
 
-    const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-    // 🔹 Pinned Locations List
-    if (_pinnedLocations.isNotEmpty)
-    Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    Text("Pinned Locations",
-    style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500)),
-    const SizedBox(height: 8),
-    SizedBox(
-    height: 120, // Increased height for better visibility
-    child: ListView.builder(
-    shrinkWrap: true,
-    itemCount: _pinnedLocations.length,
-    itemBuilder: (context, index) {
-    final location = _pinnedLocations[index];
-    return Card(
-    elevation: 1,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-    margin: const EdgeInsets.symmetric(vertical: 4),
-    child: ListTile(
-    title: Text(location['locationName'], style: GoogleFonts.poppins()),
-    subtitle: Text(
-    "Lat: ${location['latitude'].toStringAsFixed(2)}, Lng: ${location['longitude'].toStringAsFixed(2)}",
-    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey[600]),
-    ),
-    trailing: IconButton(
-    icon: const Icon(Icons.delete_outline, color: Colors.red),
-    onPressed: () => _removePinnedLocation(location['locationName']),
-    ),
-    ),
-    );
-    },
-    ),
-    ),
-    ],
-    ),
-    ],
-    ),
-    ),
-    ),
+              // 🔹 Pinned Locations List
+              if (_pinnedLocations.isNotEmpty)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Pinned Locations",
+                        style: GoogleFonts.poppins(
+                            fontSize: 16, fontWeight: FontWeight.w500)),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 120, // Increased height for better visibility
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: _pinnedLocations.length,
+                        itemBuilder: (context, index) {
+                          final location = _pinnedLocations[index];
+                          return Card(
+                            elevation: 1,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(6)),
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            child: ListTile(
+                              title: Text(location['locationName'],
+                                  style: GoogleFonts.poppins()),
+                              subtitle: Text(
+                                "Lat: ${location['latitude'].toStringAsFixed(2)}, Lng: ${location['longitude'].toStringAsFixed(2)}",
+                                style: GoogleFonts.poppins(
+                                    fontSize: 12, color: Colors.grey[600]),
+                              ),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.red),
+                                onPressed: () => _removePinnedLocation(
+                                    location['locationName']),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
-
 }
