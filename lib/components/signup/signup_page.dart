@@ -1,9 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lage/components/signup/profilesetup.dart';
+import 'package:lage/components/signup/verificationPage.dart';
 import 'package:mongo_dart/mongo_dart.dart' as M;
-
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
+import 'package:random_string/random_string.dart';
 import '../../dbHelper/mongodb.dart';
+import '../services/email_service.dart';
 
 class SignupPage extends StatefulWidget {
   const SignupPage({super.key});
@@ -19,6 +23,7 @@ class SignupPageState extends State<SignupPage> {
 
   final _formKey = GlobalKey<FormState>();
 
+
   signUp() async {
     if (_formKey.currentState!.validate()) {
       try {
@@ -26,9 +31,7 @@ class SignupPageState extends State<SignupPage> {
           email: email.text.trim(),
           password: password.text.trim(),
         );
-        print('backFire: $backFire');
 
-        // Create MongoDB document as a Map
         var _id = M.ObjectId();
         final Map<String, dynamic> data = {
           "_id": _id,
@@ -36,17 +39,27 @@ class SignupPageState extends State<SignupPage> {
           "firebaseId": backFire.user?.uid,
         };
 
-        var result = await MongoDatabase.insertUser(data); // Now data is a Map
+        await MongoDatabase.insertUser(data);
 
-        // Navigate to Profile Setup after successful registration
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Profilesetup()),
-        );
-      } on FirebaseAuthException catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.message}')),
-        );
+        // 👉 OTP Step
+        String generatedOtp = randomNumeric(6);
+        bool emailSent = await sendOtpEmail(email.text.trim(), generatedOtp);
+
+        if (emailSent) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => OTPVerificationPage(
+                email: email.text.trim(),
+                otp: generatedOtp,
+              ),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to send OTP')),
+          );
+        }
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: ${e.toString()}')),
@@ -54,7 +67,6 @@ class SignupPageState extends State<SignupPage> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
